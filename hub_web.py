@@ -28,6 +28,7 @@ import datetime as dt
 import io
 import json
 import mimetypes
+import os
 import secrets
 import sys
 import threading
@@ -41,9 +42,10 @@ from urllib.parse import parse_qs, unquote, urlparse
 import hub_settings
 import trading_hub as hub
 
-HOST, PORT = "127.0.0.1", 8765
+HOST = os.environ.get("HUB_HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", "8765"))
 TOKEN = secrets.token_hex(16)
-OPEN_BROWSER = True
+OPEN_BROWSER = os.environ.get("OPEN_BROWSER", "0") == "1"  # off by default on servers
 
 LOCK = threading.Lock()
 JOBS = {}
@@ -308,6 +310,8 @@ class Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj), "application/json")
 
     def _host_ok(self):
+        if os.environ.get("RAILWAY_ENVIRONMENT"):
+            return True  # on Railway, any host is fine (it's behind their proxy)
         return self.headers.get("Host", "").split(":")[0] in ("127.0.0.1", "localhost")
 
     def do_GET(self):
