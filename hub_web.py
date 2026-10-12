@@ -23,6 +23,8 @@ Press Ctrl+C in this window, or the Quit button on the page, to stop it.
 Keep this file in the same folder as trading_hub.py and the other scripts.
 """
 
+import yf_cloud_patch as _yf_patch; _yf_patch.apply()  # must be first: patches yfinance before any module imports it
+
 import contextlib
 import datetime as dt
 import io
