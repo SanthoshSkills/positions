@@ -1,6 +1,6 @@
 # Checkpoint
 
-Last updated: 29 Oct 2026
+Last updated: 14 Nov 2026
 
 ## How to work
 - Read this file first. Read other files only when the Next action says so.
@@ -18,6 +18,16 @@ Then think about moving off Railway to Cloudflare.
 - Remove paper trades, portfolio and ETF/fund features from the new repo.
 - Make a FRESH COPY of the kept files (no git history).
 - Keep: the screener, the charts, the recommendations, the write-ups.
+- New repo is `SanthoshSkills/markets` (empty, attached and cloned on 14 Nov 2026).
+- Keep `trading_hub.py` and `hub_web.py` in `markets`, with the removed parts cut out.
+- The `positions` repo stays as it is. Do not change its code files.
+
+## Import check (done 14 Nov 2026, imports only)
+- Clean (no import of removed files): `nse_screener.py`, `fundamentals.py`, `ha_chart.py`, `hub_settings.py`,
+  `candle_view.py`, `chart_patterns.py`, `yf_cloud_patch.py`, `stock_lookup.py`, `backtest.py`.
+- `trading_hub.py` imports `paper_tracker`, `portfolio`, `alerts`, `redeploy`, `position_actions`, `funds` (lines 97-140).
+- `hub_web.py` imports `paper_tracker`, `portfolio`, `alerts`, `funds` (lines 389-393).
+- Not yet checked: text and links to the portfolio report in the screener and candlestick reports.
 
 ## Likely files to keep (from PROJECT_NOTES.md; imports NOT yet checked)
 - `nse_screener.py`, `fundamentals.py`
@@ -50,9 +60,9 @@ Then think about moving off Railway to Cloudflare.
 - The code was tested on made-up data only. Plan a first run on real data.
 
 ## Next action
-1. Ask the user to create an EMPTY GitHub repo for the new project and give its name (owner/repo).
-   (This session can attach an existing repo. It may not be able to create one.)
-2. Attach and clone the new repo.
-3. Read the import lines of the kept files in this repo. Report which files depend on removed files.
-4. Copy the kept files. Fix imports. Commit and push.
+Steps 1 to 3 are done (new repo `markets` attached; import check done).
+4. Copy the clean kept files into `/home/claude/markets` (fresh copy, no history). Commit and push.
+5. Copy `trading_hub.py` and `hub_web.py`. Cut the removed parts and their imports. Commit and push.
+6. Find and remove portfolio report links in the screener and candlestick reports.
+7. Plan a first run on real data.
 Ask ONE question per turn.
