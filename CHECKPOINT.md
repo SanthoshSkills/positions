@@ -60,8 +60,8 @@ Then think about moving off Railway to Cloudflare.
 - The code was tested on made-up data only. Plan a first run on real data.
 
 ## Next action
-Steps 1 to 3 are done (new repo `markets` attached; import check done).
-4. Copy the clean kept files into `/home/claude/markets` (fresh copy, no history). Commit and push.
+Steps 1 to 4 are done (new repo `markets` attached; import check done;
+the 9 clean files, `nse_symbols_cache.csv`, `requirements.txt` and `.gitignore` copied and pushed to `markets`, 14 Nov 2026).
 5. Copy `trading_hub.py` and `hub_web.py`. Cut the removed parts and their imports. Commit and push.
 6. Find and remove portfolio report links in the screener and candlestick reports.
 7. Plan a first run on real data.
