@@ -70,6 +70,9 @@ the 9 clean files, `nse_symbols_cache.csv`, `requirements.txt` and `.gitignore` 
    Fixed stale paper/portfolio text in messages and comments (`nse_screener.py`, `candle_view.py`, `ha_chart.py`,
    `hub_settings.py`, `backtest.py`). Left the "holding" and "your stop" code path in `candle_view.py` (dead, harmless).
    Backtest wording now says "the plan the screener suggests": the user may check that it is right.
-7. NEXT: plan a first run on real data (code was tested on made-up data only). Nothing in `markets` has run yet.
+7. NEXT: first run on real data (code was tested on made-up data only). Nothing in `markets` has run yet.
+   14 Nov 2026: this Claude session CANNOT reach Yahoo or NSE (its network allows only package sites and GitHub;
+   curl to Yahoo, nseindia.com and nsearchives.nseindia.com all failed). This says nothing about NSE blocking
+   Cloudflare or other cloud jobs. The first real run must happen on the user's computer (or another host).
    Then go back to the open questions (Cloudflare design, data source).
 Ask ONE question per turn.
