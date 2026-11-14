@@ -66,6 +66,10 @@ the 9 clean files, `nse_symbols_cache.csv`, `requirements.txt` and `.gitignore` 
     Menu now has 6 items: screen, lookup, backtest, reports, web, settings. User may add parts back later.
 5b. DONE (14 Nov 2026): `hub_web.py` copied to `markets` and trimmed. The user agreed to the cut list.
     It compiles. It was NOT run (no real run yet). Railway settings (host 0.0.0.0, RAILWAY_ENVIRONMENT) kept for now.
-6. Find and remove portfolio report links in the screener and candlestick reports.
-7. Plan a first run on real data.
+6. DONE (14 Nov 2026): no portfolio report links existed in `nse_screener.py` or `candle_view.py`.
+   Fixed stale paper/portfolio text in messages and comments (`nse_screener.py`, `candle_view.py`, `ha_chart.py`,
+   `hub_settings.py`, `backtest.py`). Left the "holding" and "your stop" code path in `candle_view.py` (dead, harmless).
+   Backtest wording now says "the plan the screener suggests": the user may check that it is right.
+7. NEXT: plan a first run on real data (code was tested on made-up data only). Nothing in `markets` has run yet.
+   Then go back to the open questions (Cloudflare design, data source).
 Ask ONE question per turn.
