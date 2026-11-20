@@ -44,10 +44,10 @@ from urllib.parse import parse_qs, unquote, urlparse
 import hub_settings
 import trading_hub as hub
 
-HOST = os.environ.get("HUB_HOST", "0.0.0.0")
+HOST = os.environ.get("HUB_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
 TOKEN = secrets.token_hex(16)
-OPEN_BROWSER = os.environ.get("OPEN_BROWSER", "0") == "1"  # off by default on servers
+OPEN_BROWSER = os.environ.get("OPEN_BROWSER", "1") == "1"  # opens the page for you; set OPEN_BROWSER=0 to stop that
 
 LOCK = threading.Lock()
 JOBS = {}
@@ -363,8 +363,6 @@ class Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj), "application/json")
 
     def _host_ok(self):
-        if os.environ.get("RAILWAY_ENVIRONMENT"):
-            return True  # on Railway, any host is fine (it's behind their proxy)
         return self.headers.get("Host", "").split(":")[0] in ("127.0.0.1", "localhost")
 
     def do_GET(self):
@@ -471,7 +469,7 @@ def serve():
             continue
     if server is None:
         sys.exit("Could not start the web page: ports 8765-8774 are all busy.")
-    url = f"http://{HOST}:{server.server_address[1]}/"
+    url = f"http://{'127.0.0.1' if HOST in ('0.0.0.0', '') else HOST}:{server.server_address[1]}/"   # browsers cannot open 0.0.0.0
     print(f"Trading hub is running at {url}\nLeave this window open. Press Ctrl+C to stop.")
     if OPEN_BROWSER:
         webbrowser.open(url)
