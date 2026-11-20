@@ -335,6 +335,24 @@ def collate(pattern, prefix, date_of):
     return name, pd.concat(frames, ignore_index=True).to_csv(index=False).encode("utf-8")
 
 
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def tracker_download(kind):
+    """The tracker as Excel (all sheets) or as one csv table. Returns (name, bytes, content type) or None."""
+    import tracker
+
+    tables = tracker.build()
+    if tables["history"].empty:
+        return None
+    s = tracker.stamp()
+    if kind == "excel":
+        return f"tracker_{s}.xlsx", tracker.excel_bytes(tables), XLSX_TYPE
+    if kind in tracker.CSV_TABLES:
+        return f"tracker_{kind}_{s}.csv", tracker.csv_bytes(tables, kind), "text/csv; charset=utf-8"
+    return None
+
+
 def collate_screens():
     """All screening results.csv files in one csv."""
     return collate("output/20*/results.csv", "all_screens", lambda p: p.parent.name)
@@ -396,6 +414,19 @@ class Handler(BaseHTTPRequestHandler):
                 text, status, result = job.text[since:], job.status, job.result
                 offset = len(job.text)
             return self._json({"text": text, "offset": offset, "status": status, "result": result})
+        if path == "/download/tracker":
+            got = tracker_download(qs.get("kind", [""])[0])
+            if got is None:
+                return self._send(404, "Nothing to download yet. Run a screen first.")
+            name, data, ctype = got
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if path in ("/download", "/download/all", "/download/all_lookups"):
             got = (collate_screens() if path == "/download/all" else
                    collate_lookups() if path == "/download/all_lookups" else
@@ -510,6 +541,9 @@ input{font-size:21px;padding:8px 10px;width:420px;max-width:100%;border:2px soli
 pre{background:#101820;color:#d6f5d6;font-size:18px;padding:12px;border-radius:8px;height:300px;overflow:auto;white-space:pre-wrap}
 .hint{color:#555;font-size:18px} #status{font-weight:bold}
 table{border-collapse:collapse;font-size:20px} td{padding:6px 14px;border-bottom:1px solid #ddd}
+details.dl{display:inline-block;vertical-align:top;margin:6px 8px 6px 0} details.dl summary{list-style:none;font-size:21px;padding:10px 20px;border-radius:8px;background:#1f4e9c;color:white;cursor:pointer}
+details.dl summary::-webkit-details-marker{display:none} details.dl .sub{background:white;border:2px solid #1f4e9c;border-radius:8px;padding:8px 14px;margin-top:4px;min-width:330px}
+details.dl .sub a{display:block;padding:3px 0} details.dl .sub b{display:block;margin-top:6px}
 </style></head><body>
 <header><h1>Trading hub <span style='font-size:22px;background:white;color:#1f4e9c;padding:3px 14px;border-radius:20px;margin-left:12px'>__ORIGIN__</span></h1><button class='stop' onclick='quit()'>Quit</button></header>
 <main>
@@ -591,6 +625,15 @@ Period <input id='stp' style='width:120px'> &nbsp; Multiplier <input id='stm' st
 <div class='card'><h2>Reports</h2><p class='hint'>Every stock in the reports has Google and Yahoo live-chart links.</p>
 <p><a class='btn' href='/download/all'>Download all screens in one CSV</a>
 <a class='btn' href='/download/all_lookups'>Download all lookups in one CSV</a>
+<details class='dl'><summary>Download tracker &#9662;</summary><div class='sub'>
+<b>Excel</b><a href='/download/tracker?kind=excel'>All sheets in one Excel file</a>
+<b>CSV (one table each)</b>
+<a href='/download/tracker?kind=leaderboard'>Leaderboard (stocks, highest Breakout count first)</a>
+<a href='/download/tracker?kind=journeys'>Journeys (stock by day grid)</a>
+<a href='/download/tracker?kind=overview'>Overview (stocks per status each day)</a>
+<a href='/download/tracker?kind=events'>Events (callouts)</a>
+<a href='/download/tracker?kind=transitions'>Transitions (near breakout to breakout)</a>
+<a href='/download/tracker?kind=history'>History (every row)</a></div></details>
 <span class='hint'>The file name has the date and time you click. Each screen and each lookup also has its own "Download CSV" link below, named with the date and time it ran.</span></p>
 <div id='reports'></div></div>
 </main>
