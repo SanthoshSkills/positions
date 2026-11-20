@@ -262,12 +262,18 @@ def list_reports():
     items = []
     for p in reversed(sorted(Path().glob("output/20*/report.html"))[-5:]):
         links = [{"text": "Screener report", "url": _url(p), "target": "screener_view"}]
+        if (p.parent / "results.csv").exists():
+            links.append({"text": "Download CSV", "url": "/download?file=" + (p.parent / "results.csv").as_posix(),
+                          "target": "_self"})
         cr = p.parent / "candle_report.html"
         if cr.exists():
             links.append({"text": "Candlestick report", "url": _url(cr), "target": "candle_view"})
         items.append({"label": f"Screen of {p.parent.name}", "when": stamp(p), "links": links})
     for p in reversed(sorted(Path().glob("output/lookup_*/report.html"))[-5:]):
         links = [{"text": "Lookup report", "url": _url(p), "target": "screener_view"}]
+        if (p.parent / "lookup_results.csv").exists():
+            links.append({"text": "Download CSV", "url": "/download?file=" + (p.parent / "lookup_results.csv").as_posix(),
+                          "target": "_self"})
         cr = p.parent / "candle_report.html"
         if cr.exists():
             links.append({"text": "Candlestick report", "url": _url(cr), "target": "candle_view"})
@@ -284,6 +290,51 @@ def list_reports():
                 links.append({"text": "Candlestick report", "url": _url(cr), "target": "candle_view"})
             items.append({"label": label, "when": stamp(p), "links": links})
     return items
+
+
+def run_stamp(p):
+    """Date and time the file was written (= when the screen ran), for file names: 2026-11-20_0851."""
+    return dt.datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d_%H%M")
+
+
+def csv_download(rel):
+    """One results csv as a download. Returns (file name, bytes) or None."""
+    p = allowed_file(rel)
+    if p is None or p.suffix.lower() != ".csv":
+        return None
+    if p.name == "lookup_results.csv":   # the folder name already holds the date and time of the run
+        return f"{p.parent.name}.csv", p.read_bytes()
+    return f"screen_{p.parent.name}_ran_{run_stamp(p)}.csv", p.read_bytes()
+
+
+def collate(pattern, prefix, date_of):
+    """Join many csv files into one, with run_date and run_time columns. Returns (name, bytes) or None."""
+    import pandas as pd
+
+    frames = []
+    for p in sorted(Path().glob(pattern)):
+        try:
+            df = pd.read_csv(p)
+        except Exception:  # noqa: BLE001  (skip a damaged file)
+            continue
+        df.insert(0, "run_time", dt.datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"))
+        df.insert(0, "run_date", date_of(p))
+        frames.append(df)
+    if not frames:
+        return None
+    name = f"{prefix}_{dt.datetime.now().strftime('%Y-%m-%d_%H%M')}.csv"
+    return name, pd.concat(frames, ignore_index=True).to_csv(index=False).encode("utf-8")
+
+
+def collate_screens():
+    """All screening results.csv files in one csv."""
+    return collate("output/20*/results.csv", "all_screens", lambda p: p.parent.name)
+
+
+def collate_lookups():
+    """All stock-lookup csv files in one csv (run_date = the lookup folder's date and time)."""
+    return collate("output/lookup_*/lookup_results.csv", "all_lookups",
+                   lambda p: p.parent.name.replace("lookup_", ""))
 
 
 def allowed_file(rel):
@@ -338,6 +389,21 @@ class Handler(BaseHTTPRequestHandler):
                 text, status, result = job.text[since:], job.status, job.result
                 offset = len(job.text)
             return self._json({"text": text, "offset": offset, "status": status, "result": result})
+        if path in ("/download", "/download/all", "/download/all_lookups"):
+            got = (collate_screens() if path == "/download/all" else
+                   collate_lookups() if path == "/download/all_lookups" else
+                   csv_download(qs.get("file", [""])[0]))
+            if got is None:
+                return self._send(404, "Nothing to download yet. Run a screen first.")
+            name, data = got
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if path.startswith("/files/"):
             p = allowed_file(path[len("/files/"):])
             if p is None:
@@ -516,6 +582,9 @@ Period <input id='stp' style='width:120px'> &nbsp; Multiplier <input id='stm' st
 <p id='status'>Idle.</p><div id='result'></div><pre id='log'></pre></div>
 
 <div class='card'><h2>Reports</h2><p class='hint'>Every stock in the reports has Google and Yahoo live-chart links.</p>
+<p><a class='btn' href='/download/all'>Download all screens in one CSV</a>
+<a class='btn' href='/download/all_lookups'>Download all lookups in one CSV</a>
+<span class='hint'>The file name has the date and time you click. Each screen and each lookup also has its own "Download CSV" link below, named with the date and time it ran.</span></p>
 <div id='reports'></div></div>
 </main>
 <script>
