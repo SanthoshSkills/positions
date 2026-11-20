@@ -308,11 +308,12 @@ def csv_download(rel):
 
 
 def collate(pattern, prefix, date_of):
-    """Join many csv files into one, with run_date and run_time columns. Returns (name, bytes) or None."""
+    """Join many csv files into one (newest run first), with run_date and run_time columns. Returns (name, bytes) or None."""
     import pandas as pd
 
     frames = []
-    for p in sorted(Path().glob(pattern)):
+    # newest data pull first (by the time each file was written)
+    for p in sorted(Path().glob(pattern), key=lambda q: (q.stat().st_mtime, q.name), reverse=True):
         try:
             df = pd.read_csv(p)
         except Exception:  # noqa: BLE001  (skip a damaged file)
