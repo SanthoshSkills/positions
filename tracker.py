@@ -2,7 +2,7 @@
 """
 Tracker: how did the screener's stocks do over time?
 
-    python tracker.py            writes output/tracker/tracker_<date>_<time>.xlsx and one csv per table,
+    python tracker.py            writes output/tracker/5.5_tracker_<date>_<time>.xlsx and one csv per table,
                                  then prints the top of the leaderboard
 
 It reads every output/<date>/results.csv (one row = one stock on one data day) and builds:
@@ -380,9 +380,9 @@ def main():
     out = OUTPUT_DIR / "tracker"
     out.mkdir(parents=True, exist_ok=True)
     s = stamp()
-    (out / f"tracker_{s}.xlsx").write_bytes(excel_bytes(tables))
+    (out / f"5.5_tracker_{s}.xlsx").write_bytes(excel_bytes(tables))
     for name in CSV_TABLES:
-        (out / f"tracker_{name}_{s}.csv").write_bytes(csv_bytes(tables, name))
+        (out / f"5.5_tracker_{name}_{s}.csv").write_bytes(csv_bytes(tables, name))
     h, lb = tables["history"], tables["leaderboard"]
     print(f"{h['day'].nunique()} data days, {lb['symbol'].nunique()} stocks. Files are in {out}")
     show = ["symbol", "worth_following", "breakouts", "breakout_weak_volume", "near_breakout", "appearances", "last_status"]
