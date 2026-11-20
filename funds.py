@@ -53,6 +53,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from origin import ORIGIN, with_origin
 
 import nse_screener as ns
 import portfolio as pf
@@ -365,7 +366,7 @@ def holding_notes(h, m, ordered):
     return notes
 
 
-PAGE = """<html><head><meta charset='utf-8'><title>ETFs, funds and gold __DATE__</title>
+PAGE = """<html><head><meta charset='utf-8'><title>ETFs, funds and gold __DATE__ - __ORIGIN__</title>
 <style>
 body{font-family:Arial,sans-serif;font-size:21px;margin:28px;line-height:1.5;max-width:1500px}
 html{scroll-behavior:smooth}
@@ -386,7 +387,7 @@ a.lv{font-size:19px;font-weight:normal}
  font-size:22px;font-weight:bold;padding:14px 20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 __ZOOMCSS__
 </style></head><body id='top'>
-<h1>ETFs, mutual funds and gold - __DATE__</h1>
+<h1>ETFs, mutual funds and gold - __DATE__ &nbsp;<small style='color:#1f4e9c'>[__ORIGIN__]</small></h1>
 <p>Prices are end-of-day (latest close in the data: __LAST__).</p>
 <div class='warn'><b>How to read this.</b> Funds are ranked <b>inside their own group</b>: first by trend
 (Uptrend = price above its 50-day and 200-day averages and the 200-day average rising; Downtrend = below both; Mixed =
@@ -583,12 +584,12 @@ def make_report(prices, bench, positions, mfs, out_dir=None):
                  f"<img class='chart' title='Click to zoom' src='charts/{sym}.png'></div><hr>")
     body += ("<p class='small'>Buy-above, stop and target on the charts use the screener's formulas for shares: they are planning levels "
              "for a fund, not advice. Funds without a chart are in the table above.</p>")
-    html = (PAGE.replace("__DATE__", str(dt.date.today())).replace("__LAST__", day).replace("__BODY__", body)
+    html = (PAGE.replace("__DATE__", str(dt.date.today())).replace("__ORIGIN__", ORIGIN).replace("__LAST__", day).replace("__BODY__", body)
             .replace("__ZOOMCSS__", ns.ZOOM_CSS).replace("__ZOOMHTML__", ns.ZOOM_HTML))
     path = out_dir / "funds_report.html"
     path.write_text(html, encoding="utf-8")
-    pd.DataFrame([{k: (round(v, 2) if isinstance(v, float) else v) for k, v in m.items() if k != "plan"}
-                  for m in ordered]).to_csv(out_dir / "funds_ranking.csv", index=False)
+    with_origin(pd.DataFrame([{k: (round(v, 2) if isinstance(v, float) else v) for k, v in m.items() if k != "plan"}
+                              for m in ordered])).to_csv(out_dir / "funds_ranking.csv", index=False)
     return path, ordered, hrows
 
 

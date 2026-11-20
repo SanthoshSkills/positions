@@ -40,6 +40,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from origin import ORIGIN, with_origin
 from matplotlib.patches import Rectangle
 
 import nse_screener as ns
@@ -484,7 +485,7 @@ def make_chart(symbol, row, tfs, bands, levels, last_close, out_path):
 
 # ------------------------------- REPORT ---------------------------------------
 
-PAGE_HEAD = """<html><head><meta charset='utf-8'><title>Candles __DATE__</title>
+PAGE_HEAD = """<html><head><meta charset='utf-8'><title>Candles __DATE__ - __ORIGIN__</title>
 <style>
 body{font-family:Arial,sans-serif;font-size:21px;margin:28px;line-height:1.5;max-width:1500px}
 html{scroll-behavior:smooth}
@@ -509,7 +510,7 @@ a.nav,a.lv{font-size:19px;font-weight:normal}
  background:rgba(0,0,0,.55);padding:4px 10px;border-radius:6px}
 </style></head><body id='top'>
 <script>window.name='candle_view';</script>
-<h1>Candlestick view - __DATE__</h1>
+<h1>Candlestick view - __DATE__ &nbsp;<small style='color:#1f4e9c'>[__ORIGIN__]</small></h1>
 <p><a href='__REPORT_LINK__' target='__REPORT_TARGET__'>&larr; Back to __REPORT_LABEL__</a></p>
 <p>Latest completed daily candle: __LAST__. Charts show green = closed up, red = closed down.
 Arrows point at formations: &#9650; bullish, &#9660; bearish, &#9679; indecision.
@@ -667,7 +668,7 @@ def write_report(rows, out_dir, last_dates):
         trs += (f"<tr><td><a href='#{sym}'>{sym}</a></td><td>{row['status']}</td><td>{q}</td>"
                 f"<td>{cell(tfs, 'D')}</td><td>{cell(tfs, 'W')}</td><td>{cell(tfs, 'M')}</td><td>{pat_cell(tfs)}</td></tr>")
     body = "".join(f"<div id='{sym}'>{stock_html(sym, row, tfs)}</div><hr>" for sym, row, tfs in rows)
-    html = (PAGE_HEAD.replace("__DATE__", str(dt.date.today())).replace("__LAST__", last_dates)
+    html = (PAGE_HEAD.replace("__DATE__", str(dt.date.today())).replace("__ORIGIN__", ORIGIN).replace("__LAST__", last_dates)
             .replace("__HEAD__", "".join(f"<th>{h}</th>" for h in head)).replace("__ROWS__", trs)
             .replace("__BODY__", body).replace("__REPORT_LINK__", REPORT_LINK)
             .replace("__REPORT_TARGET__", REPORT_TARGET).replace("__REPORT_LABEL__", REPORT_LABEL))
@@ -737,7 +738,7 @@ def run(results, prices, out_dir):
               f"{', '.join(mark(p) + ' ' + p['name'] for p in lat) if lat else '-'}")
     if not rows:
         return None
-    pd.DataFrame(signal_rows).to_csv(out_dir / "candle_signals.csv", index=False)
+    with_origin(pd.DataFrame(signal_rows)).to_csv(out_dir / "candle_signals.csv", index=False)
     note = last_day.strftime("%d %b %Y") + (" (today's unfinished candle ignored)" if dropped_any else "")
     return write_report(rows, out_dir, note)
 

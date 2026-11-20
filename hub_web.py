@@ -43,6 +43,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import hub_settings
 import trading_hub as hub
+from origin import ORIGIN, with_origin
 
 HOST = os.environ.get("HUB_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
@@ -302,9 +303,15 @@ def csv_download(rel):
     p = allowed_file(rel)
     if p is None or p.suffix.lower() != ".csv":
         return None
+    import pandas as pd
+
+    try:
+        data = with_origin(pd.read_csv(p)).to_csv(index=False).encode("utf-8")   # old files get the origin column too
+    except Exception:  # noqa: BLE001  (an empty or damaged file: send it as it is)
+        data = p.read_bytes()
     if p.name == "lookup_results.csv":   # the folder name already holds the date and time of the run
-        return f"{p.parent.name}.csv", p.read_bytes()
-    return f"screen_{p.parent.name}_ran_{run_stamp(p)}.csv", p.read_bytes()
+        return f"{p.parent.name}.csv", data
+    return f"screen_{p.parent.name}_ran_{run_stamp(p)}.csv", data
 
 
 def collate(pattern, prefix, date_of):
@@ -315,11 +322,12 @@ def collate(pattern, prefix, date_of):
     # newest data pull first (by the time each file was written)
     for p in sorted(Path().glob(pattern), key=lambda q: (q.stat().st_mtime, q.name), reverse=True):
         try:
-            df = pd.read_csv(p)
+            df = pd.read_csv(p).drop(columns=["origin"], errors="ignore")   # one origin column, added first below
         except Exception:  # noqa: BLE001  (skip a damaged file)
             continue
         df.insert(0, "run_time", dt.datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"))
         df.insert(0, "run_date", date_of(p))
+        df.insert(0, "origin", ORIGIN)
         frames.append(df)
     if not frames:
         return None
@@ -372,7 +380,7 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         path, qs = unquote(u.path), parse_qs(u.query)
         if path == "/":
-            return self._send(200, INDEX.replace("__TOKEN__", TOKEN))
+            return self._send(200, INDEX.replace("__TOKEN__", TOKEN).replace("__ORIGIN__", ORIGIN))
         if path == "/api/search":
             return self._json(search(qs.get("q", [""])[0]))
         if path == "/api/settings":
@@ -484,7 +492,7 @@ def serve():
 
 
 # ------------------------------- THE PAGE -------------------------------------
-INDEX = """<!doctype html><html><head><meta charset='utf-8'><title>Trading hub</title>
+INDEX = """<!doctype html><html><head><meta charset='utf-8'><title>Trading hub - __ORIGIN__</title>
 <style>
 body{font-family:Arial,sans-serif;font-size:22px;margin:0;background:#f4f6f9;line-height:1.5}
 header{background:#1f4e9c;color:white;padding:16px 28px;display:flex;justify-content:space-between;align-items:center}
@@ -503,7 +511,7 @@ pre{background:#101820;color:#d6f5d6;font-size:18px;padding:12px;border-radius:8
 .hint{color:#555;font-size:18px} #status{font-weight:bold}
 table{border-collapse:collapse;font-size:20px} td{padding:6px 14px;border-bottom:1px solid #ddd}
 </style></head><body>
-<header><h1>Trading hub</h1><button class='stop' onclick='quit()'>Quit</button></header>
+<header><h1>Trading hub <span style='font-size:22px;background:white;color:#1f4e9c;padding:3px 14px;border-radius:20px;margin-left:12px'>__ORIGIN__</span></h1><button class='stop' onclick='quit()'>Quit</button></header>
 <main>
 <div class='card'><h2>1. Screen the market</h2>
 <p class='hint'>Runs the screener, then the candlestick view for the stocks it finalizes (several minutes).</p>

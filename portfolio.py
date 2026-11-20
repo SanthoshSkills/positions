@@ -60,6 +60,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from origin import ORIGIN, with_origin
  
 import nse_screener as ns
  
@@ -829,7 +830,7 @@ def weights_chart(rows, path):
  
  
 # ------------------------------- REPORT ---------------------------------------
-PAGE = """<html><head><meta charset='utf-8'><title>Portfolio __DATE__</title>
+PAGE = """<html><head><meta charset='utf-8'><title>Portfolio __DATE__ - __ORIGIN__</title>
 <style>
 body{font-family:Arial,sans-serif;font-size:21px;margin:28px;line-height:1.5;max-width:1500px}
 html{scroll-behavior:smooth}
@@ -850,7 +851,7 @@ a.lv,a.cv{font-size:19px;font-weight:normal}
  font-size:22px;font-weight:bold;padding:14px 20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 </style></head><body id='top'>
 <script>window.name='portfolio_view';</script>
-<h1>My portfolio - __DATE__</h1>
+<h1>My portfolio - __DATE__ &nbsp;<small style='color:#1f4e9c'>[__ORIGIN__]</small></h1>
 <p>Prices are end-of-day (latest close in the data: __LAST__). Holdings come from the broker files you imported:
 __IMPORTS__. __TRADENOTE__</p>
 <div class='warn'><b>Action prompts</b> (EXIT, WARNING, ADD, HOLD) come from price rules, including the Heikin Ashi + Supertrend swing method: they are prompts to look at the chart, not advice.</div>
@@ -1032,7 +1033,7 @@ def write_report(rows, positions, problems, last_day, imports, traded, out_dir):
     imports_txt = ", ".join(imports) or "none"
     tradenote = (f"{traded} trades are in your trade log." if traded else
                  "No trade history yet, so buy dates and holding periods are unknown (add trades with the trades, buy or sell commands).")
-    html = (PAGE.replace("__DATE__", str(dt.date.today())).replace("__LAST__", last_day or "-")
+    html = (PAGE.replace("__DATE__", str(dt.date.today())).replace("__ORIGIN__", ORIGIN).replace("__LAST__", last_day or "-")
             .replace("__IMPORTS__", imports_txt).replace("__TRADENOTE__", tradenote)
             .replace("__SUMMARY__", summary).replace("__ATTENTION__", attention)
             .replace("__HEAD__", "".join(f"<th class='{'n' if h in ('Qty', 'Avg cost', 'Latest', 'Value Rs', 'Weight', 'Result Rs', 'Result %', 'Your stop', 'To stop') else ''}'>{h}</th>" for h in head))
@@ -1146,7 +1147,7 @@ def cmd_report():
                  "pnl_pct": None if r["pnl_pct"] is None else round(r["pnl_pct"], 1), "stop": r["stop"],
                  "health": r["health"], "quality": "ETF" if r["etf"] else (r["quality"]["verdict"] if r["quality"] else ""),
                  "first_buy": r["pos"]["first_buy"], "flags": " | ".join(r["pos"]["flags"])} for r in rows]
-    pd.DataFrame(csv_rows).to_csv(OUT_DIR / "portfolio_positions.csv", index=False)
+    with_origin(pd.DataFrame(csv_rows)).to_csv(OUT_DIR / "portfolio_positions.csv", index=False)
     imports = sorted({f"{h['broker']} file {h['source_file']} (imported {h['imported_on']})" for h in load_csv(HOLDINGS)})
     report = write_report(rows, positions, problems, last_day, imports, len(load_csv(TRADES)), OUT_DIR)
     print(f"\nReport: {report}")

@@ -54,6 +54,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from origin import ORIGIN, with_origin
 
 import nse_screener as ns
 import portfolio as pf
@@ -380,7 +381,7 @@ def build_splits(ok, budget, rets, sectors, sector_share, port_ret):
 
 
 # ------------------------------- REPORT ---------------------------------------
-PAGE = """<html><head><meta charset='utf-8'><title>Where could the money go - __SYM__</title>
+PAGE = """<html><head><meta charset='utf-8'><title>Where could the money go - __SYM__ - __ORIGIN__</title>
 <style>
 body{font-family:Arial,sans-serif;font-size:21px;margin:28px;line-height:1.5;max-width:1200px}
 table{border-collapse:collapse;font-size:19px}
@@ -397,7 +398,7 @@ td.n,th.n{text-align:right}
 .small{font-size:17px;color:#444}
 a.lv{font-size:19px;font-weight:normal}
 </style></head><body>
-<h1>Where could the money go - __SYM__</h1>
+<h1>Where could the money go - __SYM__ &nbsp;<small style='color:#1f4e9c'>[__ORIGIN__]</small></h1>
 <div class='warn'><b>Screening output, not advice.</b> These are ideas to research, built from your latest
 screener results (__RESDATE__) and your holdings. Check each stock yourself before acting.
 Tax rates used are assumptions: confirm them with your tax advisor.</div>
@@ -513,7 +514,7 @@ def write_page(sym, sale, budget, opts, wait, held, notes, res_date, res_age, sp
         n += f"<div class='bad'>The screener results are {res_age} days old. Run the screener again for fresh options.</div>"
     for t in notes:
         n += f"<div class='box'>{t}</div>"
-    html = (PAGE.replace("__SYM__", sym).replace("__RESDATE__", res_date or "none found").replace("__NOTES__", n)
+    html = (PAGE.replace("__SYM__", sym).replace("__ORIGIN__", ORIGIN).replace("__RESDATE__", res_date or "none found").replace("__NOTES__", n)
             .replace("__SALE__", sale_html(sale, sym))
             .replace("__OPTIONS__", stock_card_html("Option 1: best screener alternative", opts[0])
                      + stock_card_html("Option 2: same-theme swap", opts[1]) + splits_html(splits, budget)

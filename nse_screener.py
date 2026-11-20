@@ -38,6 +38,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
 import pandas as pd
+from origin import ORIGIN, with_origin
 
 try:
     from fundamentals import check_many
@@ -541,7 +542,7 @@ def write_report(shown, hidden, out_dir):
                       "crossover, then RSI. The dotted lines are the real buy-above, stop-loss and target prices.")
     else:
         chart_help = "the purple dashed line is the trend (shaded area = normal range)."
-    html = f"""<html><head><meta charset='utf-8'><title>NSE screen {dt.date.today()}</title>
+    html = f"""<html><head><meta charset='utf-8'><title>NSE screen {dt.date.today()} - {ORIGIN}</title>
 <style>
 body{{font-family:Arial,sans-serif;font-size:21px;margin:28px;line-height:1.5}}
 table{{border-collapse:collapse;font-size:19px}}
@@ -556,7 +557,7 @@ html{{scroll-behavior:smooth}}
 {ZOOM_CSS}
 </style></head><body id='top'>
 <script>window.name='screener_view';</script>
-<h1>NSE positional screen - {dt.date.today()}</h1>
+<h1>NSE positional screen - {dt.date.today()} &nbsp;<small style='color:#1f4e9c'>[{ORIGIN}]</small></h1>
 <p>Prices are end-of-day. Buy-above and stop-loss are starting points, not advice. <b>Buy above</b> = the highest price of the last 10 weeks plus 0.5%: you buy only if the price trades above it. <b>Stop-loss</b> = the price at which you sell to cap the loss. <b>Target</b> = the buy price plus {TARGET_RR:g} times the risk (buy price minus stop-loss): a planning level, not a prediction. Profit and loss percentages are measured from the buy price, before charges. <b>Latest price</b> = the most recent closing price in the data.
 Quantity is sized so a stop-out loses about {RISK_PER_TRADE_PCT}% of Rs {CAPITAL:,}.</p>
 <p><b>Business quality:</b> STRONG = profits growing and debt under control.
@@ -639,7 +640,7 @@ def main():
             "stop_loss", "stop_loss_pct", "target_price", "profit_pct", "stop_basis", "suggested_qty", "tight_base", "base_depth_pct",
             "pct_below_52w_high", "return_6m_pct", "return_12m_pct", "vs_nifty_score",
             "volume_vs_avg", "avg_daily_value_cr", "support_band", "resistance_band"]
-    results[cols].to_csv(out_dir / "results.csv", index=False)
+    with_origin(results[cols]).to_csv(out_dir / "results.csv", index=False)
     report = write_report(shown, hidden, out_dir)
 
     show = ["symbol", "status", "quality", "last_close", "buy_above", "stop_loss", "suggested_qty"]

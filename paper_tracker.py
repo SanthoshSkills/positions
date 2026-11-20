@@ -35,6 +35,7 @@ import webbrowser
 from pathlib import Path
 
 import pandas as pd
+from origin import ORIGIN, with_origin
 
 # ----------------------------- SETTINGS (edit me) -----------------------------
 CAPITAL = 25_000            # keep the same as in nse_screener.py (used for a warning only)
@@ -48,7 +49,7 @@ REPORT_FILE = "paper_report.html"
 OUTPUT_DIR = "output"
 # ------------------------------------------------------------------------------
 
-COLS = ["symbol", "logged_on", "data_date", "status", "buy_above", "stop_loss", "target", "qty",
+COLS = ["origin", "symbol", "logged_on", "data_date", "status", "buy_above", "stop_loss", "target", "qty",
         "entry_date", "entry_price", "exit_date", "exit_price", "last_price", "last_date",
         "highest_since_entry", "net_pnl", "net_pnl_pct", "note"]
 ACTIVE = ("WAITING", "OPEN")
@@ -79,7 +80,7 @@ def save_log(rows):
             w = csv.DictWriter(f, fieldnames=COLS)
             w.writeheader()
             for r in rows:
-                w.writerow({c: r.get(c, "") for c in COLS})
+                w.writerow({c: (r.get(c, "") or (ORIGIN if c == "origin" else "")) for c in COLS})
     except PermissionError:
         sys.exit(f"Could not save {LOG_FILE}. Close it in Excel and run the command again.")
 
@@ -310,7 +311,7 @@ def write_html(rows):
     realised = sum(num(r["net_pnl"]) or 0 for r in closed)
     unreal = sum(num(r["net_pnl"]) or 0 for r in open_)
     wins = sum(1 for r in closed if (num(r["net_pnl"]) or 0) > 0)
-    html = f"""<html><head><meta charset='utf-8'><title>Paper trades</title>
+    html = f"""<html><head><meta charset='utf-8'><title>Paper trades - {ORIGIN}</title>
 <style>
 body{{font-family:Arial,sans-serif;font-size:22px;margin:28px;line-height:1.5}}
 table{{border-collapse:collapse;font-size:21px}}
@@ -318,7 +319,7 @@ th{{text-align:left;padding:10px 14px;border-bottom:3px solid #888}}
 td{{padding:10px 14px;border-bottom:1px solid #ccc}}
 .pos{{color:#1b7f3b;font-weight:bold}} .neg{{color:#b22222;font-weight:bold}}
 </style></head><body>
-<h1>Paper trades - {dt.date.today()}</h1>
+<h1>Paper trades - {dt.date.today()} &nbsp;<small style='color:#1f4e9c'>[{ORIGIN}]</small></h1>
 <p>Finished trades: <b>{wins} winners of {len(closed)}</b>, net <b>Rs {realised:,.0f}</b>.
 Open trades running result: <b>Rs {unreal:,.0f}</b>. (After rough charges. No real money.)</p>
 <table><tr>{''.join(f'<th>{h}</th>' for h in head)}</tr>{body}</table>

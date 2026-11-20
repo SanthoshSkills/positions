@@ -36,6 +36,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from origin import ORIGIN, with_origin
 
 import nse_screener as ns
 
@@ -231,7 +232,7 @@ def make_chart(done_top, path):
 
 def write_report(trades, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
-    trades.to_csv(out_dir / "trades.csv", index=False)
+    with_origin(trades).to_csv(out_dir / "trades.csv", index=False)
     top = trades[trades["top_pick"]]
     all_ = trades
     s_top, s_all = summarize(top), summarize(all_)
@@ -261,7 +262,7 @@ def write_report(trades, out_dir):
             f"with an average loser of {s_top['average loser %']}% and a worst trade of {s_top['worst %']}%."
         )
 
-    html = f"""<html><head><meta charset='utf-8'><title>Backtest</title>
+    html = f"""<html><head><meta charset='utf-8'><title>Backtest - {ORIGIN}</title>
 <style>
 body{{font-family:Arial,sans-serif;font-size:21px;margin:28px;line-height:1.5;max-width:1150px}}
 table{{border-collapse:collapse;font-size:19px}}
@@ -269,7 +270,7 @@ td,th{{padding:8px 14px;border-bottom:2px solid #ccc;text-align:left}}
 img{{width:100%;max-width:1100px;height:auto}}
 .warn{{background:#fff3cd;border-left:8px solid #b8860b;padding:12px 18px}}
 </style></head><body>
-<h1>Backtest of the screener rules</h1>
+<h1>Backtest of the screener rules &nbsp;<small style='color:#1f4e9c'>[{ORIGIN}]</small></h1>
 <p><b>{headline}</b></p>
 <div class='warn'><b>Be careful with these numbers.</b>
 <ul>

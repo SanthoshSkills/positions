@@ -76,3 +76,12 @@ the 9 clean files, `nse_symbols_cache.csv`, `requirements.txt` and `.gitignore` 
    Cloudflare or other cloud jobs. The first real run must happen on the user's computer (or another host).
    Then go back to the open questions (Cloudflare design, data source).
 Ask ONE question per turn.
+
+## Origin label (20 Nov 2026, user request)
+- New file `origin.py`: `ORIGIN = "v.5.5/Positions"`. The `markets` repo has its own copy with `markets/markets`.
+- The label shows in the hub web page header and title, and in the title and heading of every report page.
+- Added an `origin` first column to: `results.csv`, `lookup_results.csv`, `trades.csv`, `candle_signals.csv`,
+  `funds_ranking.csv`, `portfolio_positions.csv`, `paper_log.csv`, and all hub CSV downloads (also for old files).
+- NOT changed (on purpose): the alerts log (append file, an old header would not match) and the portfolio
+  data files that the user keeps and edits (`holdings` and similar).
+- Tested on made-up files only.

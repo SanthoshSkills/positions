@@ -53,6 +53,7 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 import pandas as pd
+from origin import ORIGIN, with_origin
 
 import candle_view as cv
 import nse_screener as ns
@@ -485,7 +486,7 @@ def write_lookup_report(rows, names, out_dir):
                  f"<img class='chart' title='Click to zoom' src='charts/{sym}.png'></div><hr>")
     head = ["Stock", "Company", "Price rules", "Business quality", "Status", "Latest price",
             "Buy above", "Stop-loss (loss)", "Target (profit)"]
-    html = f"""<html><head><meta charset='utf-8'><title>Stock lookup {dt.date.today()}</title>
+    html = f"""<html><head><meta charset='utf-8'><title>Stock lookup {dt.date.today()} - {ORIGIN}</title>
 <style>
 body{{font-family:Arial,sans-serif;font-size:21px;margin:28px;line-height:1.5}}
 html{{scroll-behavior:smooth}}
@@ -508,7 +509,7 @@ a.cv,a.lv{{font-size:19px;font-weight:normal}}
 {ns.ZOOM_CSS}
 </style></head><body id='top'>
 <script>window.name='screener_view';</script>
-<h1>Stock lookup - {dt.date.today()}</h1>
+<h1>Stock lookup - {dt.date.today()} &nbsp;<small style='color:#1f4e9c'>[{ORIGIN}]</small></h1>
 <p>Same analysis as the screener, for the stocks you chose. <b>Nothing is hidden</b>: stocks that fail the price
 rules or look weak as businesses are shown with the reasons. Prices are end-of-day.
 <b>Buy above</b> = the highest price of the last 10 weeks plus 0.5%: you buy only if the price trades above it.
@@ -571,7 +572,7 @@ def main():
     results = pd.DataFrame(table_rows)
     lead = ["symbol", "data_date", "status", "quality", "quality_notes", "passes_screen", "screen_failures"]
     results = results[lead + [c for c in results.columns if c not in lead]]
-    results.to_csv(out_dir / "lookup_results.csv", index=False)
+    with_origin(results).to_csv(out_dir / "lookup_results.csv", index=False)
 
     print("\nFinding candle formations and drawing candlestick charts ...")
     candle = cv.run(results, prices, out_dir)
