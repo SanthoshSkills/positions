@@ -10,6 +10,7 @@ It reads every output/<date>/results.csv (one row = one stock on one data day) a
   Leaderboard  one row per stock: how often it appeared and in which status. Highest Breakout count first.
   Journeys     one line per stock, one cell per data day (see the code letters in Notes)
   Transitions  of the near-breakout stocks, how many became a breakout within 5 and 10 run days
+               (strong Breakout, weak-volume breakout only, either, and the weak-volume share)
   History      every row (raw)
 The hub page (hub_web.py) offers the same files in its Download menu.
 
@@ -191,9 +192,13 @@ def events(ov):
 def transitions(h):
     """
     Of the near-breakout episodes (the first day of an unbroken run of 'Near breakout price'),
-    how many became a Breakout within 5 or 10 run days. Only episodes with a full window are counted.
+    how many became a breakout within 5 or 10 run days. Only episodes with a full window are counted.
+    The counts do not overlap: an episode with at least one strong Breakout day in the window counts as "strong".
+    An episode with only weak-volume breakout days (no strong Breakout) counts as "weak volume only".
+    "either" = strong + weak volume only. weak_share_percent = weak volume only, as a share of "either".
     """
-    cols = ["within_run_days", "episodes_started", "full_window", "became_breakout", "percent"]
+    cols = ["within_run_days", "episodes_started", "full_window", "became_breakout", "became_weak_volume_only",
+            "became_either", "percent_strong", "percent_either", "weak_share_percent"]
     if h.empty:
         return pd.DataFrame(columns=cols)
     days = sorted(h["day"].unique())
@@ -207,15 +212,21 @@ def transitions(h):
                 starts.append((s, i))
     rows = []
     for hz in (5, 10):
-        full = broke = 0
+        full = strong = weak = 0
         for s, i in starts:
             window = [by[s].get(days[j]) for j in range(i + 1, min(i + hz, len(days) - 1) + 1)]
-            hit = any(w in BREAKOUTS for w in window)
-            if hit or len(days) - 1 - i >= hz:
+            has_strong = BREAKOUT in window
+            has_weak = BREAKOUT_WV in window
+            if has_strong or has_weak or len(days) - 1 - i >= hz:
                 full += 1
-                broke += int(hit)
+                strong += int(has_strong)
+                weak += int(has_weak and not has_strong)
+        either = strong + weak
+        pct = lambda a, b: round(100 * a / b, 1) if b else np.nan   # noqa: E731
         rows.append({"within_run_days": hz, "episodes_started": len(starts), "full_window": full,
-                     "became_breakout": broke, "percent": round(100 * broke / full, 1) if full else np.nan})
+                     "became_breakout": strong, "became_weak_volume_only": weak, "became_either": either,
+                     "percent_strong": pct(strong, full), "percent_either": pct(either, full),
+                     "weak_share_percent": pct(weak, either)})
     return pd.DataFrame(rows, columns=cols)
 
 
@@ -233,7 +244,9 @@ def notes_text(h):
         ("Nifty gate (Overview)", "OFF = the run had watch-only stocks. ON = near-breakout stocks with a normal plan. "
                                   "unknown = no near-breakout stocks, or the run is older than the watch-only feature."),
         ("Transitions", "An episode starts on the first day of an unbroken run of 'Near breakout price'. "
-                        "Run days are days with a screener run, not trading days. Only episodes with a full window are counted."),
+                        "Run days are days with a screener run, not trading days. Only episodes with a full window are counted. "
+                        "The counts do not overlap: strong = at least one strong Breakout day in the window; weak volume only = "
+                        "a weak-volume breakout day but no strong Breakout; either = both added; weak_share_percent = weak volume only / either."),
         ("Not built yet", "Outcomes (target, stop-loss or still open for each recommendation)."),
     ]
     lines += [("Journey code " + c, t) for c, t in CODE_TEXT]
@@ -265,7 +278,7 @@ def web_data(output_dir=OUTPUT_DIR):
     """
     h = load_history(output_dir)
     out = {"origin": ORIGIN, "recent_days": RECENT_DAYS, "first_rows": FIRST_ROWS, "strip_days": WEB_STRIP_DAYS,
-           "days": [], "rows": [], "legend": [[c, t] for c, t in CODE_TEXT],
+           "days": [], "rows": [], "overview": [], "events": [], "transitions": [], "legend": [[c, t] for c, t in CODE_TEXT],
            "fills": {c: "#" + f for c, f in CODE_FILL.items()}, "fonts": {c: "#" + f for c, f in CODE_FONT.items()}}
     if h.empty:
         return out
@@ -273,6 +286,17 @@ def web_data(output_dir=OUTPUT_DIR):
     days = sorted(h["day"].unique())
     pos = {d: i for i, d in enumerate(days)}
     out["days"] = days
+    # Overview tab: all stocks (not the list filters). counts use the same letters as the strip.
+    ov = overview(h)
+    out["overview"] = [{"day": r["day"], "alerts": int(r["alerts"]), "gate": r["nifty_gate"],
+                        "counts": {"B": int(r["Breakout"]), "W": int(r["Breakout weak volume"]),
+                                   "N": int(r["Near breakout"]), "n": int(r["Near breakout (watch only)"]),
+                                   "S": int(r["Building base"]), "E": int(r["Extended"])}}
+                       for _, r in ov.iterrows()]
+    out["events"] = [[r["day"], r["event"], r["detail"]] for _, r in events(ov).iterrows()]
+    tr = transitions(h)
+    out["transitions"] = [{k: (None if pd.isna(v) else (float(v) if isinstance(v, (float, np.floating)) else int(v)))
+                           for k, v in r.items()} for r in tr.to_dict("records")]
     by = {s: g.sort_values("day") for s, g in h.groupby("symbol")}
     for _, r in lb.iterrows():
         g = by[r["symbol"]]

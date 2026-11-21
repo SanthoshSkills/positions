@@ -792,10 +792,19 @@ td.panel{padding:0;background:#fff!important;height:501px;border-bottom:2px soli
 #readout{font-size:13px;color:#333;min-height:18px}
 .leg{display:inline-block;margin:2px 14px 2px 0;font-size:14px}
 .leg b{display:inline-block;width:22px;text-align:center;border-radius:3px;margin-right:6px}
+.xs{overflow-x:auto;overflow-y:hidden;flex:1}
+h2{font-size:18px;margin:2px 0 8px} h3{font-size:16px;margin:10px 0 4px}
+.plain th{position:static;cursor:default;height:auto;padding:6px 10px;white-space:normal;text-align:center}
+.plain td{height:auto;padding:6px 10px;white-space:normal;text-align:center}
+.plain td.l{text-align:left}
+.badge{display:inline-block;min-width:20px;text-align:center;color:white;border-radius:3px;font-weight:bold;font-size:13px;padding:0 3px}
+#ovstocks p{margin:3px 0;font-size:15px}
 </style></head><body>
 <header><h1>Tracker <span class='pill'>__ORIGIN__</span></h1>
 <span><a href='/download/tracker?kind=excel'>Download tracker (Excel)</a> &nbsp; <a href='/'>Back to the hub</a></span></header>
 <main>
+<div class='bar' id='tabs'></div>
+<div id='listTab'>
 <div class='card'>
 <div class='bar' id='views'></div>
 <div class='bar'>
@@ -814,6 +823,18 @@ td.panel{padding:0;background:#fff!important;height:501px;border-bottom:2px soli
 <div class='wrap' id='wrap'></div>
 <div class='hint' id='count'></div>
 <div id='moreBox'></div>
+</div>
+</div>
+<div id='ovTab' style='display:none'>
+<div class='card'>
+<h2>Stocks per status on each run day (all stocks)</h2>
+<div id='ovlegend'></div>
+<div class='hint' id='ovread'></div>
+<div style='display:flex;margin-top:6px'><div id='ovaxis'></div><div class='xs' id='ovwrap'></div></div>
+<div id='ovstocks'></div>
+</div>
+<div class='card'><h2>Events</h2><div id='ovevents'></div></div>
+<div class='card'><h2>Near breakout to breakout</h2><div id='ovtrans'></div></div>
 </div>
 </main>
 <script>
@@ -968,6 +989,116 @@ function render(){
   const box=$('moreBox'); box.innerHTML='';
   if(limit!==0&&n<list.length){const b=el('button','more','Show more ('+Math.min(limit,list.length-n)+' more)'); b.onclick=()=>{shown+=limit; render();}; box.appendChild(b);}
 }
+// ---------------- Overview tab ----------------
+const OVORDER=['B','W','N','n','S','E'];
+const GATEFILL='#f9dede';
+let selDay=null, ovDrawn=false, listScroll=[0,0];
+function evColor(name){return name.indexOf('gate OFF')>=0?'#c0392b':(name.indexOf('gate ON')>=0?'#1b7f3b':'#1f4e9c');}
+function ovText(o){
+  const total=OVORDER.reduce((s,c)=>s+o.counts[c],0);
+  return o.day+' - Nifty gate '+o.gate+' - '+total+' listed - '+OVORDER.map(c=>(STATUS[c]||c)+' '+o.counts[c]).join('; ')+' - alerts '+o.alerts;
+}
+function drawOverview(){
+  const ov=D.overview, n=ov.length, xs=$('ovwrap'), ax=$('ovaxis'), rd=$('ovread');
+  const oldL=xs.scrollLeft, atEnd=(xs.scrollLeft+xs.clientWidth>=xs.scrollWidth-25);
+  xs.innerHTML=''; ax.innerHTML='';
+  const dflt='Hover a bar to see a day. Click a bar to see the stocks of that day.';
+  rd.textContent=dflt;
+  if(!n){xs.textContent='No screener runs yet. Run a screen on the hub page first.'; return;}
+  const evAt={}; D.events.forEach((e,k)=>{(evAt[e[0]]=evAt[e[0]]||[]).push(k);});
+  const maxF=Math.max(1,...Object.values(evAt).map(a=>a.length));
+  const BW=18, STEP=26, PH=260, T=8+maxF*20, H=T+PH+36, XPAD=(STEP-BW)/2;
+  let mx=1; ov.forEach(o=>{mx=Math.max(mx,OVORDER.reduce((s,c)=>s+o.counts[c],0));});
+  const top=Math.max(4,Math.ceil(mx/4)*4), Y=v=>T+PH-v*PH/top;
+  const W=n*STEP+8;
+  const s=svg('svg',{width:W,height:H,viewBox:'0 0 '+W+' '+H}), a=svg('svg',{width:38,height:H,viewBox:'0 0 38 '+H});
+  for(let g=0;g<=4;g++){const v=top*g/4, y=Y(v);
+    s.appendChild(svg('line',{x1:0,x2:W,y1:y,y2:y,stroke:'#e3e3e3'}));
+    const t=svg('text',{x:34,y:y+4,'text-anchor':'end','font-size':11,fill:'#555'}); t.textContent=v; a.appendChild(t);}
+  ov.forEach((o,i)=>{
+    const x0=4+i*STEP+XPAD;
+    if(o.gate==='OFF') s.appendChild(svg('rect',{x:x0-XPAD,y:T,width:STEP,height:PH,fill:GATEFILL}));
+  });
+  ov.forEach((o,i)=>{
+    const x0=4+i*STEP+XPAD;
+    if(evAt[o.day]){const ln=svg('line',{x1:x0+BW/2,x2:x0+BW/2,y1:8,y2:T+PH,stroke:'#999','stroke-dasharray':'2 3'}); s.appendChild(ln);}
+  });
+  ov.forEach((o,i)=>{
+    const x0=4+i*STEP+XPAD; let cum=0;
+    OVORDER.forEach(c=>{const v=o.counts[c]; if(!v) return;
+      const r=svg('rect',{x:x0,y:Y(cum+v),width:BW,height:v*PH/top,fill:D.fills[c]||'#ccc',stroke:'#fff','stroke-width':0.5});
+      s.appendChild(r); cum+=v;});
+    const p=o.day.split('-');
+    const t1=svg('text',{x:x0+BW/2,y:T+PH+14,'text-anchor':'middle','font-size':12,'font-weight':'bold',fill:'#222'}); t1.textContent=parseInt(p[2],10); s.appendChild(t1);
+    const t2=svg('text',{x:x0+BW/2,y:T+PH+28,'text-anchor':'middle','font-size':11,fill:'#555'}); t2.textContent=MON[parseInt(p[1],10)-1]; s.appendChild(t2);
+    if(selDay===o.day) s.appendChild(svg('rect',{x:x0-XPAD+1,y:T,width:STEP-2,height:PH,fill:'none',stroke:'#222','stroke-width':1.5,'stroke-dasharray':'4 3'}));
+  });
+  ov.forEach((o,i)=>{   // flags (event callouts), above the bars
+    const x0=4+i*STEP+XPAD;
+    (evAt[o.day]||[]).forEach((k,j)=>{
+      const e=D.events[k], fy=4+j*20, g=svg('g',{});
+      g.appendChild(svg('rect',{x:x0+BW/2-9,y:fy,width:18,height:16,rx:3,fill:evColor(e[1]),stroke:'#fff'}));
+      const t=svg('text',{x:x0+BW/2,y:fy+12,'text-anchor':'middle','font-size':12,'font-weight':'bold',fill:'#fff'}); t.textContent=String(k+1); g.appendChild(t);
+      const ti=svg('title',{}); ti.textContent=e[0]+' - '+e[1]+': '+e[2]; g.appendChild(ti); s.appendChild(g);});
+  });
+  ov.forEach((o,i)=>{   // one invisible column per day: hover and click
+    const c=svg('rect',{x:4+i*STEP,y:T,width:STEP,height:PH,fill:'transparent'}); c.style.cursor='pointer';
+    c.addEventListener('mouseenter',()=>{rd.textContent=ovText(o);});
+    c.addEventListener('mouseleave',()=>{rd.textContent=dflt;});
+    c.addEventListener('click',()=>{selDay=(selDay===o.day)?null:o.day; drawOverview(); dayStocks();});
+    s.appendChild(c);
+  });
+  ax.appendChild(a); xs.appendChild(s);
+  if(atEnd||!ovDrawn) {xs.scrollLeft=1e9; setTimeout(()=>{xs.scrollLeft=1e9;},60);} else xs.scrollLeft=oldL;
+}
+function dayStocks(){
+  const bx=$('ovstocks'); bx.innerHTML=''; if(!selDay) return;
+  const i=D.days.indexOf(selDay), o=D.overview[i];
+  bx.appendChild(el('h3',null,'Stocks on '+selDay+' (Nifty gate '+o.gate+')'));
+  let any=false;
+  OVORDER.forEach(c=>{
+    const syms=D.rows.filter(r=>r.codes[i]===c).map(r=>r.symbol).sort();
+    if(!syms.length) return; any=true;
+    const p=el('p'), b=el('b',null,c); b.style.cssText='display:inline-block;width:22px;text-align:center;border-radius:3px;margin-right:6px;background:'+(D.fills[c]||'#ccc')+';color:'+(D.fonts[c]||'#000');
+    p.appendChild(b); p.appendChild(document.createTextNode((STATUS[c]||c)+' ('+syms.length+'): '+syms.join(', '))); bx.appendChild(p);
+  });
+  if(!any) bx.appendChild(el('p','hint','No stocks were listed on this day.'));
+}
+function drawEvents(){
+  const bx=$('ovevents'); bx.innerHTML='';
+  if(!D.events.length){bx.appendChild(el('p','hint','No events yet.')); return;}
+  const t=el('table','plain'), hr=el('tr'); ['#','Date','Event','Detail'].forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
+  D.events.forEach((e,k)=>{const tr=el('tr'), td=el('td'), b=el('span','badge',String(k+1)); b.style.background=evColor(e[1]); td.appendChild(b); tr.appendChild(td);
+    tr.appendChild(el('td','l',e[0])); tr.appendChild(el('td','l',e[1])); tr.appendChild(el('td','l',e[2])); t.appendChild(tr);});
+  bx.appendChild(t);
+  bx.appendChild(el('p','hint','The numbers are the flags on the chart.'));
+}
+function drawTransitions(){
+  const bx=$('ovtrans'); bx.innerHTML='';
+  if(!D.transitions.length){bx.appendChild(el('p','hint','No data yet.')); return;}
+  const H=['Within (run days)','Near-breakout episodes started','Episodes with a full window','Strong Breakout','Weak-volume breakout only','Either (total)','Strong %','Either %','Weak-volume share of either %'];
+  const K=['within_run_days','episodes_started','full_window','became_breakout','became_weak_volume_only','became_either','percent_strong','percent_either','weak_share_percent'];
+  const t=el('table','plain'), hr=el('tr'); H.forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
+  D.transitions.forEach(r=>{const tr=el('tr'); K.forEach(k=>tr.appendChild(el('td',null,r[k]===null?'-':String(r[k])))); t.appendChild(tr);});
+  bx.appendChild(t);
+  bx.appendChild(el('p','hint','An episode starts on the first day of an unbroken run of Near breakout price. Run days are days with a screener run. Only episodes with a full window are counted. '+
+    'The counts do not overlap: Strong = at least one strong Breakout day in the window. Weak-volume only = a weak-volume breakout day but no strong Breakout. Either = both added. '+
+    'The weak-volume share = weak-volume only divided by either.'));
+}
+function drawLegend(){
+  const lg=$('ovlegend'); lg.innerHTML='';
+  OVORDER.forEach(c=>{const s=el('span','leg'), b=el('b',null,c); b.style.background=D.fills[c]||'#ccc'; b.style.color=D.fonts[c]||'#000'; s.appendChild(b); s.appendChild(document.createTextNode(STATUS[c])); lg.appendChild(s);});
+  const g=el('span','leg'), gb=el('b',null,' '); gb.style.cssText='background:'+GATEFILL+';border:1px solid #d9b0b0'; g.appendChild(gb); g.appendChild(document.createTextNode('Nifty gate OFF (near-breakout stocks are watch only)')); lg.appendChild(g);
+  const f=el('span','leg'), fb=el('b',null,'1'); fb.style.cssText='background:#1f4e9c;color:#fff'; f.appendChild(fb); f.appendChild(document.createTextNode('Event flag (see Events below)')); lg.appendChild(f);
+}
+function showTab(t){
+  const wrap=$('wrap');
+  if($('listTab').style.display!=='none') listScroll=[wrap.scrollLeft,wrap.scrollTop];   // the list loses its scroll position while hidden
+  $('listTab').style.display=(t==='list')?'':'none'; $('ovTab').style.display=(t==='ov')?'':'none';
+  $('tabs').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  if(t==='ov'){ if(!ovDrawn){drawLegend(); drawOverview(); dayStocks(); drawEvents(); drawTransitions(); ovDrawn=true;} }
+  else {wrap.scrollLeft=listScroll[0]; wrap.scrollTop=listScroll[1];}
+}
 function reset(){shown=limit||25; render();}
 function resetAll(){   // back to the default: Worth following, no filters, no search, default sort, 25 rows
   view='worth'; open=null; scrollEnd=true; sortKey=null; sortDir=-1; limit=D.first_rows; shown=limit;
@@ -976,6 +1107,8 @@ function resetAll(){   // back to the default: Worth following, no filters, no s
   render();
 }
 function setup(){
+  const tb=$('tabs');
+  [['ov','Overview'],['list','List']].forEach(([k,label])=>{const b=el('button','v',label); b.dataset.t=k; b.onclick=()=>showTab(k); tb.appendChild(b);});
   const vb=$('views');
   VIEWS.forEach(([k,label])=>{const b=el('button','v'+(k===view?' on':''),label);
     b.onclick=()=>{view=k; vb.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); reset();}; vb.appendChild(b);});
@@ -992,7 +1125,8 @@ function setup(){
   al.appendChild(document.createTextNode('Alert that day (score 70 or more)')); lg.appendChild(al);
   $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The six columns and the title row stay in place. Quality and last alert are in the detail panel (click a stock). The strip opens at the newest day; scroll left for older days. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
   D.rows.forEach((r,i)=>{r._i=i;});
-  scrollEnd=true; render();
+  scrollEnd=true; render();   // the list is drawn while it is visible (the frozen columns need real widths), then the page opens on the Overview
+  showTab('ov');
 }
 fetch('/api/tracker').then(r=>r.json()).then(d=>{D=d; limit=D.first_rows; shown=limit; setup();});
 </script></body></html>"""
