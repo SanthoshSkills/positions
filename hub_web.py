@@ -782,6 +782,7 @@ td.dc{width:26px;min-width:26px;padding:0;text-align:center;font-weight:bold;fon
 td.dc i{position:absolute;top:1px;right:1px;width:6px;height:6px;border-radius:50%;background:#d22;border:1px solid #fff}
 .dim{color:#888}
 th.nar{white-space:normal;text-align:center;padding:0 6px;width:62px;line-height:1.15}
+th.buy{white-space:normal;line-height:1.15;width:118px;min-width:118px}
 td.nar{text-align:center;padding:0 6px}
 tr.pick td{background:#e8f0fd!important} tr.sym{cursor:pointer}
 td.panel{padding:0;background:#fff!important;height:471px;border-bottom:2px solid #1f4e9c;white-space:normal;vertical-align:top}
@@ -819,7 +820,7 @@ td.panel{padding:0;background:#fff!important;height:471px;border-bottom:2px soli
 const $=id=>document.getElementById(id);
 const VIEWS=[['worth','Worth following'],['now','Listed now'],['broke','Ever broke out'],['all','All stocks']];
 const STATUS={B:'Breakout',W:'Breakout, weak volume',N:'Near breakout',n:'Near breakout (watch only)',S:'Building base',E:'Extended'};
-const COLS=[['symbol','Symbol'],['last_code','Status now'],['breakouts','Breakouts'],['last_buy','Last buy price'],
+const COLS=[['symbol','Symbol'],['last_code','Status now'],['breakouts','Breakouts'],['last_buy','Recommended buy price'],
  ['appearances','Times listed'],['last_alert','Last alert'],['quality','Quality'],['vs_nifty','vs Nifty']];
 const FROZEN=4;      // the first four columns stay in place when the table scrolls sideways
 let scrollEnd=true;  // true = the next drawing scrolls to the newest day (the right end)
@@ -859,7 +860,7 @@ function detail(r){
   const cn=Object.keys(r.counts).map(c=>(STATUS[c]||c)+': '+r.counts[c]).join('; ');
   box.appendChild(el('p',null,'First listed '+r.first_seen+'. Last listed '+r.last_seen+'. Times listed: '+r.appearances+'.'));
   box.appendChild(el('p',null,'Days per status - '+(cn||'none')+'.'));
-  box.appendChild(el('p',null,'Last buy price '+(r.last_buy===null?'-':r.last_buy.toFixed(2))+'. Stop-loss '+(r.last_stop===null?'-':r.last_stop.toFixed(2))+
+  box.appendChild(el('p',null,'Last recommended buy price '+(r.last_buy===null?'-':r.last_buy.toFixed(2))+'. Stop-loss '+(r.last_stop===null?'-':r.last_stop.toFixed(2))+
     '. Target '+(r.last_target===null?'-':r.last_target.toFixed(2))+'. Last alert '+(r.last_alert||'none')+'.'));
   // days from the first listed day to the newest data day
   let a=0; while(a<nd&&r.codes[a]===' ') a++;
@@ -883,16 +884,16 @@ function detail(r){
     const vl=svg('line',{x1:0,x2:0,y1:T,y2:H-B,stroke:'#888','stroke-dasharray':'3 3',visibility:'hidden'}); s.appendChild(vl);
     const day=k=>{const i=idx[k], c=r.codes[i];
       if(c===' ') return D.days[i]+': not on the list';
-      return D.days[i]+' - '+(STATUS[c]||c)+' - price '+(r.closes[i]===null?'-':r.closes[i].toFixed(2))+' - buy price '+(r.buys[i]===null?'-':r.buys[i].toFixed(2))+
+      return D.days[i]+' - '+(STATUS[c]||c)+' - price '+(r.closes[i]===null?'-':r.closes[i].toFixed(2))+' - recommended buy price '+(r.buys[i]===null?'-':r.buys[i].toFixed(2))+
         (r.scores[i]!==null?' - score '+r.scores[i]:'')+(r.alerts[i]==='1'?' - ALERT':'');};
     s.addEventListener('mousemove',ev=>{const bb=s.getBoundingClientRect(), x=ev.clientX-bb.left; let k=Math.round((x-L)*(idx.length-1)/(W-L-R)); if(idx.length<2) k=0;
       k=Math.max(0,Math.min(idx.length-1,k)); vl.setAttribute('x1',X(k)); vl.setAttribute('x2',X(k)); vl.setAttribute('visibility','visible'); ro.textContent=day(k);});
     s.addEventListener('mouseleave',()=>{vl.setAttribute('visibility','hidden');});
     box.appendChild(s);
-    const lg=el('div','hint'); lg.textContent='Blue line = price (close). Orange line = buy price. A gap = not on the list that day, or no buy price (watch only).'; box.appendChild(lg);
+    const lg=el('div','hint'); lg.textContent='Blue line = price (close). Orange line = recommended buy price. A gap = not on the list that day, or no buy price (watch only).'; box.appendChild(lg);
   } else box.appendChild(el('p','hint','No prices to draw for this stock.'));
   // table: one row per run day the stock was listed, newest first
-  const t=el('table'), hr=el('tr'); ['Date','Status','Price','Buy price'].forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
+  const t=el('table'), hr=el('tr'); ['Date','Status','Price','Recommended buy price'].forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
   for(let k=idx.length-1;k>=0;k--){const i=idx[k], c=r.codes[i]; if(c===' ') continue;
     const tr=el('tr'); tr.appendChild(el('td',null,D.days[i])); tr.appendChild(el('td',null,(STATUS[c]||c)+(r.alerts[i]==='1'?' (ALERT)':'')));
     tr.appendChild(el('td',null,r.closes[i]===null?'-':r.closes[i].toFixed(2))); tr.appendChild(el('td',null,r.buys[i]===null?'-':r.buys[i].toFixed(2))); t.appendChild(tr);}
@@ -902,10 +903,10 @@ function detail(r){
 function render(){
   const all=D.rows, list=sorted(all.filter(matches));
   const n=(limit===0)?list.length:Math.min(shown,list.length), part=list.slice(0,n);
-  const wrap=$('wrap'), oldL=wrap.scrollLeft, oldT=wrap.scrollTop; wrap.innerHTML='';
+  const wrap=$('wrap'), oldL=wrap.scrollLeft, oldT=wrap.scrollTop, atEnd=(wrap.scrollLeft+wrap.clientWidth>=wrap.scrollWidth-3); wrap.innerHTML='';
   if(!all.length){wrap.textContent='No screener runs yet. Run a screen on the hub page first.'; $('count').textContent=''; $('moreBox').innerHTML=''; return;}
   const t=el('table'), hr=el('tr'), ND=D.days.length;
-  COLS.forEach(([k,label],ci)=>{const th=el('th',NAR[k]?'nar':null,label+(sortKey===k?(sortDir<0?' ▼':' ▲'):'')); if(k==='vs_nifty') th.title='vs Nifty score';
+  COLS.forEach(([k,label],ci)=>{const th=el('th',(k==='last_buy'?'buy':(NAR[k]?'nar':null)),label+(sortKey===k?(sortDir<0?' ▼':' ▲'):'')); if(k==='vs_nifty') th.title='vs Nifty score';
     if(ci<FROZEN) th.dataset.f=ci; if(ci===FROZEN-1) th.classList.add('lastf');
     th.onclick=()=>{ if(sortKey===k) sortDir=-sortDir; else {sortKey=k; sortDir=(k==='symbol'||k==='quality'||k==='last_code')?1:-1;} render(); };
     hr.appendChild(th);});
@@ -943,7 +944,7 @@ function render(){
   // freeze: each frozen column sticks at the sum of the widths of the frozen columns before it
   const ths=hr.children; let left=0;
   for(let ci=0;ci<FROZEN;ci++){const w=ths[ci].offsetWidth; t.querySelectorAll('[data-f="'+ci+'"]').forEach(c=>{c.style.left=left+'px';}); left+=w;}
-  if(scrollEnd){wrap.scrollLeft=wrap.scrollWidth; scrollEnd=false;} else {wrap.scrollLeft=oldL; wrap.scrollTop=oldT;}
+  if(scrollEnd||atEnd){wrap.scrollLeft=wrap.scrollWidth; wrap.scrollTop=oldT; scrollEnd=false;} else {wrap.scrollLeft=oldL; wrap.scrollTop=oldT;}
   // count line and "Show more"
   const hidden=all.length-list.length;
   $('count').textContent='Showing '+n+' of '+list.length+' matching stocks. '+hidden+' other stock'+(hidden===1?' is':'s are')+

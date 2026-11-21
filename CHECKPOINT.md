@@ -94,3 +94,4 @@ Ask ONE question per turn.
 - Only the reporting part was copied. The daily run and the strategy in this repo are not changed.
 - Tested on made-up files only (data function, both routes, hub card, Excel download). Not run on real results.
 - Updated the same day: the list is one table. The first four columns (Symbol, Status now, Breakouts, Last buy price) and the title row stay in place; the rest scrolls with the strip, which opens at the newest day. Same page as `markets`.
+- Label change (21 Nov 2026): the list column is now "Recommended buy price" (panel: "Last recommended buy price"). Same page as `markets`.
