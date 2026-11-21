@@ -97,3 +97,4 @@ Ask ONE question per turn.
 - Label change (21 Nov 2026): the list column is now "Recommended buy price" (panel: "Last recommended buy price"). Same page as `markets`.
 - Frozen columns changed (21 Nov 2026, user request): now six (Symbol, Status now, Times listed, Breakouts, Recommended buy price, vs Nifty). Last alert and Quality scroll with the strip. Same page as `markets`.
 - Grid columns (21 Nov 2026, user request): "Last alert" and "Quality" are removed from the grid and shown in the detail panel. The grid has the six frozen columns and the strip. The Quality filter stays. Same page as `markets`.
+- Detail panel chart (21 Nov 2026, user request): status letter boxes (same colours as the strip) above the points, and a drawn legend with thick blue and orange lines. Same page as `markets`.

@@ -785,8 +785,8 @@ th.nar{white-space:normal;text-align:center;padding:0 6px;width:62px;line-height
 th.buy{white-space:normal;line-height:1.15;width:118px;min-width:118px}
 td.nar{text-align:center;padding:0 6px}
 tr.pick td{background:#e8f0fd!important} tr.sym{cursor:pointer}
-td.panel{padding:0;background:#fff!important;height:471px;border-bottom:2px solid #1f4e9c;white-space:normal;vertical-align:top}
-.pbox{width:640px;height:470px;overflow:hidden;padding:8px 12px;box-sizing:border-box}
+td.panel{padding:0;background:#fff!important;height:501px;border-bottom:2px solid #1f4e9c;white-space:normal;vertical-align:top}
+.pbox{width:640px;height:500px;overflow:hidden;padding:8px 12px;box-sizing:border-box}
 .pbox h3{margin:0 0 4px;font-size:17px} .pbox p{margin:2px 0;font-size:14px}
 .pbox table{width:100%} .pbox th{height:26px;cursor:default;font-size:13px} .pbox td{height:22px;font-size:13px}
 #readout{font-size:13px;color:#333;min-height:18px}
@@ -869,7 +869,7 @@ function detail(r){
   const vals=[]; idx.forEach(i=>{if(r.closes[i]!==null) vals.push(r.closes[i]); if(r.buys[i]!==null) vals.push(r.buys[i]);});
   const ro=el('div',null,'Hover the chart to see a day.'); ro.id='readout'; box.appendChild(ro);
   if(vals.length){
-    const W=616,H=150,L=48,R=8,T=8,B=18; let lo=Math.min(...vals), hi=Math.max(...vals); if(hi===lo){hi+=1; lo-=1;} const pad=(hi-lo)*0.08; lo-=pad; hi+=pad;
+    const W=616,H=178,L=48,R=8,T=30,B=18; let lo=Math.min(...vals), hi=Math.max(...vals); if(hi===lo){hi+=1; lo-=1;} const pad=(hi-lo)*0.08; lo-=pad; hi+=pad;
     const X=k=>L+(idx.length<2?(W-L-R)/2:k*(W-L-R)/(idx.length-1)), Y=v=>T+(hi-v)*(H-T-B)/(hi-lo);
     const s=svg('svg',{width:W,height:H,viewBox:'0 0 '+W+' '+H});
     for(let g=0;g<=3;g++){const v=lo+(hi-lo)*g/3, y=Y(v); s.appendChild(svg('line',{x1:L,x2:W-R,y1:y,y2:y,stroke:'#e3e3e3'}));
@@ -882,6 +882,19 @@ function detail(r){
       s.appendChild(svg('path',{d:path.trim(),fill:'none',stroke:col,'stroke-width':2}));
       idx.forEach((i,k)=>{const v=r[key][i]; if(v!==null) s.appendChild(svg('circle',{cx:X(k),cy:Y(v),r:3,fill:col}));});
     });
+    // letter boxes: the status letter of the strip, above the point. Every day if there is room, else only on days the status changes (and the last day)
+    const room=(W-L-R)/Math.max(1,idx.length-1)>=19; let prevC=null, lastX=-99;
+    idx.forEach((i,k)=>{
+      const c=r.codes[i]; if(c===' ') return;
+      const isLast=(k===idx.length-1), changed=(prevC===null||c!==prevC); prevC=c;
+      if(!room&&!isLast&&!(changed&&X(k)-lastX>=19)) return;   // crowded: only status changes, and only if there is room
+      lastX=X(k);
+      const ys=[r.closes[i],r.buys[i]].filter(v=>v!==null).map(Y); if(!ys.length) return;
+      const yt=Math.min(...ys), x=Math.max(1,Math.min(W-17,X(k)-8));
+      s.appendChild(svg('polygon',{points:(X(k)-4)+','+(yt-11)+' '+(X(k)+4)+','+(yt-11)+' '+X(k)+','+(yt-5),fill:'#333'}));
+      s.appendChild(svg('rect',{x:x,y:yt-27,width:16,height:16,rx:2,fill:D.fills[c]||'#ccc',stroke:'#333','stroke-width':1.5}));
+      const tx=svg('text',{x:x+8,y:yt-15,'text-anchor':'middle','font-size':12,'font-weight':'bold',fill:D.fonts[c]||'#000'}); tx.textContent=c; s.appendChild(tx);
+    });
     const vl=svg('line',{x1:0,x2:0,y1:T,y2:H-B,stroke:'#888','stroke-dasharray':'3 3',visibility:'hidden'}); s.appendChild(vl);
     const day=k=>{const i=idx[k], c=r.codes[i];
       if(c===' ') return D.days[i]+': not on the list';
@@ -891,7 +904,11 @@ function detail(r){
       k=Math.max(0,Math.min(idx.length-1,k)); vl.setAttribute('x1',X(k)); vl.setAttribute('x2',X(k)); vl.setAttribute('visibility','visible'); ro.textContent=day(k);});
     s.addEventListener('mouseleave',()=>{vl.setAttribute('visibility','hidden');});
     box.appendChild(s);
-    const lg=el('div','hint'); lg.textContent='Blue line = price (close). Orange line = recommended buy price. A gap = not on the list that day, or no buy price (watch only).'; box.appendChild(lg);
+    const lg=el('div','hint'); lg.style.fontSize='13px';
+    const sw=col=>{const g=svg('svg',{width:34,height:10}); g.appendChild(svg('line',{x1:3,y1:5,x2:31,y2:5,stroke:col,'stroke-width':5,'stroke-linecap':'round'})); g.style.cssText='vertical-align:middle;margin-right:4px'; return g;};
+    const item=(col,text)=>{const sp=el('span'); sp.style.marginRight='18px'; sp.style.whiteSpace='nowrap'; sp.appendChild(sw(col)); sp.appendChild(document.createTextNode(text)); return sp;};
+    lg.appendChild(item('#1f4e9c','Price (close)')); lg.appendChild(item('#e07b00','Recommended buy price'));
+    lg.appendChild(el('div',null,'Letter box = the status that day (same letters as the strip). When the chart is crowded, boxes show only where the status changes. A gap = not on the list that day, or no buy price (watch only).')); box.appendChild(lg);
   } else box.appendChild(el('p','hint','No prices to draw for this stock.'));
   // table: one row per run day the stock was listed, newest first
   const t=el('table'), hr=el('tr'); ['Date','Status','Price','Recommended buy price'].forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
