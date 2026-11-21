@@ -401,6 +401,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, INDEX.replace("__TOKEN__", TOKEN).replace("__ORIGIN__", ORIGIN))
         if path == "/api/search":
             return self._json(search(qs.get("q", [""])[0]))
+        if path == "/tracker":
+            return self._send(200, TRACKER_PAGE.replace("__ORIGIN__", ORIGIN))
+        if path == "/api/tracker":
+            import tracker
+            return self._json(tracker.web_data())
         if path == "/api/settings":
             return self._json(hub_settings.load())
         if path == "/api/reports":
@@ -619,6 +624,10 @@ Period <input id='stp' style='width:120px'> &nbsp; Multiplier <input id='stm' st
 <button class='alt' onclick='resetSettings()'>Back to 10 and 2</button>
 <p id='setmsg' class='hint'></p></div>
 
+<div class='card'><h2>7. Tracker</h2>
+<p class='hint'>How the screener's stocks did over the run days: the list of stocks worth following, with a journey strip for each.</p>
+<a class='btn' href='/tracker'>Open tracker</a></div>
+
 <div class='card'><h2>Progress</h2>
 <p id='status'>Idle.</p><div id='result'></div><pre id='log'></pre></div>
 
@@ -740,6 +749,242 @@ function saveSettings(){ postSettings({supertrend_period:$('stp').value,supertre
 function resetSettings(){ postSettings({reset:true}); }
 loadReports();
 loadSettings();
+</script></body></html>"""
+
+
+
+TRACKER_PAGE = r"""<!doctype html><html><head><meta charset='utf-8'><title>Tracker - __ORIGIN__</title>
+<style>
+body{font-family:Arial,sans-serif;font-size:16px;margin:0;background:#f4f6f9;line-height:1.4}
+header{background:#1f4e9c;color:white;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}
+header h1{margin:0;font-size:24px} header a{color:white;font-size:16px}
+.pill{font-size:16px;background:white;color:#1f4e9c;padding:2px 12px;border-radius:20px;margin-left:10px}
+main{padding:14px 24px}
+.card{background:white;border-radius:10px;padding:12px 16px;margin:12px 0;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:6px 0}
+button.v{font-size:15px;padding:6px 14px;border-radius:6px;border:2px solid #1f4e9c;background:white;color:#1f4e9c;cursor:pointer}
+button.v.on{background:#1f4e9c;color:white}
+button.more{font-size:16px;padding:8px 18px;border-radius:6px;border:0;background:#1f4e9c;color:white;cursor:pointer;margin:8px 0}
+select,input{font-size:15px;padding:4px 6px;border:1px solid #999;border-radius:5px}
+input.n{width:60px} input.s{width:170px}
+label{color:#333;font-size:14px}
+.hint{color:#555;font-size:14px}
+.wrap{display:flex;align-items:flex-start;overflow-x:auto}
+table{border-collapse:collapse;flex:none}
+th{background:#e8eef8;font-size:14px;text-align:left;padding:0 10px;height:46px;cursor:pointer;white-space:nowrap;border-bottom:2px solid #1f4e9c}
+td{padding:0 10px;height:28px;font-size:15px;white-space:nowrap;border-bottom:1px solid #ddd}
+tr:nth-child(even) td{background:#fafbfd}
+.dim{color:#888}
+.right{flex:1 1 300px;min-width:300px;overflow-x:auto}
+.rows{display:flex;flex-direction:column;width:max-content}
+.line{display:flex;height:29px;border-bottom:1px solid #ddd;box-sizing:border-box}
+.line.head{height:46px;border-bottom:2px solid #1f4e9c;background:#e8eef8}
+.line:not(.head):nth-child(odd){background:#fafbfd}
+.cell{width:26px;flex:none;height:28px;line-height:28px;text-align:center;font-size:13px;font-weight:bold;position:relative;box-sizing:border-box;border-right:1px solid #fff}
+.cell i{position:absolute;top:1px;right:1px;width:6px;height:6px;border-radius:50%;background:#d22;border:1px solid #fff}
+.dayh{width:26px;flex:none;height:46px;font-size:11px;color:#222;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:3px;box-sizing:border-box;line-height:1.15}
+.dayh b{font-size:14px}
+th.nar{white-space:normal;text-align:center;padding:0 6px;width:62px;line-height:1.15}
+td.nar{text-align:center;padding:0 6px}
+tr.pick td{background:#e8f0fd!important} tr.sym{cursor:pointer} .line.pick{background:#e8f0fd!important} .line.clk{cursor:pointer}
+td.panel{padding:0;background:#fff!important;height:471px;border-bottom:2px solid #1f4e9c;white-space:normal;vertical-align:top}
+.pbox{width:640px;height:470px;overflow:hidden;padding:8px 12px;box-sizing:border-box}
+.pbox h3{margin:0 0 4px;font-size:17px} .pbox p{margin:2px 0;font-size:14px}
+.pbox table{width:100%} .pbox th{height:26px;cursor:default;font-size:13px} .pbox td{height:22px;font-size:13px}
+.spacer{height:471px;border-bottom:2px solid #1f4e9c;box-sizing:border-box;background:#fff}
+#readout{font-size:13px;color:#333;min-height:18px}
+.leg{display:inline-block;margin:2px 14px 2px 0;font-size:14px}
+.leg b{display:inline-block;width:22px;text-align:center;border-radius:3px;margin-right:6px}
+</style></head><body>
+<header><h1>Tracker <span class='pill'>__ORIGIN__</span></h1>
+<span><a href='/download/tracker?kind=excel'>Download tracker (Excel)</a> &nbsp; <a href='/'>Back to the hub</a></span></header>
+<main>
+<div class='card'>
+<div class='bar' id='views'></div>
+<div class='bar'>
+<label>Status <select id='fstatus'></select></label>
+<label>Alert (ever) <select id='falert'><option value=''>Any</option><option value='yes'>Yes</option><option value='no'>No</option></select></label>
+<label>Quality <select id='fqual'><option value=''>Any</option><option>STRONG</option><option>WEAK</option><option>CHECK</option></select></label>
+<label>Minimum times listed <input class='n' id='fmin' type='number' min='0' value='0'></label>
+<label>Symbol <input class='s' id='fsym' placeholder='search symbol'></label>
+<label>Rows <select id='frows'><option>25</option><option>50</option><option>100</option><option value='0'>All</option></select></label>
+<button class='v' id='freset'>Reset</button>
+</div>
+<div class='hint' id='info'></div>
+</div>
+<div class='card'>
+<div id='legend'></div>
+<div class='wrap' id='wrap'></div>
+<div class='hint' id='count'></div>
+<div id='moreBox'></div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const VIEWS=[['worth','Worth following'],['now','Listed now'],['broke','Ever broke out'],['all','All stocks']];
+const STATUS={B:'Breakout',W:'Breakout, weak volume',N:'Near breakout',n:'Near breakout (watch only)',S:'Building base',E:'Extended'};
+const COLS=[['symbol','Symbol'],['last_code','Status now'],['appearances','Times listed'],['breakouts','Breakouts'],
+ ['last_alert','Last alert'],['last_buy','Last buy price'],['quality','Quality'],['vs_nifty','vs Nifty']];
+const NAR={appearances:1,vs_nifty:1};
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const CW=26;   // width of one strip cell in pixels
+let open=null; // symbol whose detail panel is open
+let D=null, view='worth', limit=25, shown=25, sortKey=null, sortDir=-1;
+function el(tag,cls,text){const e=document.createElement(tag); if(cls)e.className=cls; if(text!==undefined)e.textContent=text; return e;}
+function fmt(v){return v===null||v===undefined||v===''?'-':String(v);}
+function matches(r){
+  if(view==='worth'&&r.worth!=='Yes') return false;
+  if(view==='now'&&r.listed_now!=='Yes') return false;
+  if(view==='broke'&&r.breakouts+r.weak===0) return false;
+  const st=$('fstatus').value; if(st&&r.last_code!==st) return false;
+  const al=$('falert').value; if(al==='yes'&&r.alert_days===0) return false; if(al==='no'&&r.alert_days>0) return false;
+  const q=$('fqual').value; if(q&&r.quality!==q) return false;
+  if(r.appearances<(parseInt($('fmin').value,10)||0)) return false;
+  const s=$('fsym').value.trim().toUpperCase(); if(s&&!r.symbol.toUpperCase().includes(s)) return false;
+  return true;
+}
+function sorted(list){
+  if(sortKey===null) return list;
+  const k=sortKey;
+  return list.slice().sort((a,b)=>{
+    let x=a[k], y=b[k];
+    const xn=(x===null||x===undefined||x===''), yn=(y===null||y===undefined||y==='');
+    if(xn&&yn) return a._i-b._i; if(xn) return 1; if(yn) return -1;   // empty values go last
+    if(x<y) return -sortDir; if(x>y) return sortDir; return a._i-b._i;
+  });
+}
+function svg(tag,attrs){const e=document.createElementNS('http://www.w3.org/2000/svg',tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e;}
+function detail(r){
+  const box=el('div','pbox'), nd=D.days.length;
+  box.onclick=ev=>ev.stopPropagation();
+  box.appendChild(el('h3',null,r.symbol+' - '+(STATUS[r.last_code]||r.last_code)));
+  const cn=Object.keys(r.counts).map(c=>(STATUS[c]||c)+': '+r.counts[c]).join('; ');
+  box.appendChild(el('p',null,'First listed '+r.first_seen+'. Last listed '+r.last_seen+'. Times listed: '+r.appearances+'.'));
+  box.appendChild(el('p',null,'Days per status - '+(cn||'none')+'.'));
+  box.appendChild(el('p',null,'Last buy price '+(r.last_buy===null?'-':r.last_buy.toFixed(2))+'. Stop-loss '+(r.last_stop===null?'-':r.last_stop.toFixed(2))+
+    '. Target '+(r.last_target===null?'-':r.last_target.toFixed(2))+'. Last alert '+(r.last_alert||'none')+'.'));
+  // days from the first listed day to the newest data day
+  let a=0; while(a<nd&&r.codes[a]===' ') a++;
+  const idx=[]; for(let i=a;i<nd;i++) idx.push(i);
+  const vals=[]; idx.forEach(i=>{if(r.closes[i]!==null) vals.push(r.closes[i]); if(r.buys[i]!==null) vals.push(r.buys[i]);});
+  const ro=el('div',null,'Hover the chart to see a day.'); ro.id='readout'; box.appendChild(ro);
+  if(vals.length){
+    const W=616,H=150,L=48,R=8,T=8,B=18; let lo=Math.min(...vals), hi=Math.max(...vals); if(hi===lo){hi+=1; lo-=1;} const pad=(hi-lo)*0.08; lo-=pad; hi+=pad;
+    const X=k=>L+(idx.length<2?(W-L-R)/2:k*(W-L-R)/(idx.length-1)), Y=v=>T+(hi-v)*(H-T-B)/(hi-lo);
+    const s=svg('svg',{width:W,height:H,viewBox:'0 0 '+W+' '+H});
+    for(let g=0;g<=3;g++){const v=lo+(hi-lo)*g/3, y=Y(v); s.appendChild(svg('line',{x1:L,x2:W-R,y1:y,y2:y,stroke:'#e3e3e3'}));
+      const t=svg('text',{x:L-4,y:y+4,'text-anchor':'end','font-size':11,fill:'#555'}); t.textContent=v.toFixed(0); s.appendChild(t);}
+    const lab=(k)=>{const d=D.days[idx[k]]; const t=svg('text',{x:X(k),y:H-4,'text-anchor':k===0?'start':(k===idx.length-1?'end':'middle'),'font-size':11,fill:'#555'}); t.textContent=d.slice(5); s.appendChild(t);};
+    lab(0); if(idx.length>2) lab(Math.floor((idx.length-1)/2)); if(idx.length>1) lab(idx.length-1);
+    [['closes','#1f4e9c'],['buys','#e07b00']].forEach(([key,col])=>{
+      let path='', pen=false;
+      idx.forEach((i,k)=>{const v=r[key][i]; if(v===null){pen=false;return;} path+=(pen?'L':'M')+X(k)+' '+Y(v)+' '; pen=true;});
+      s.appendChild(svg('path',{d:path.trim(),fill:'none',stroke:col,'stroke-width':2}));
+      idx.forEach((i,k)=>{const v=r[key][i]; if(v!==null) s.appendChild(svg('circle',{cx:X(k),cy:Y(v),r:3,fill:col}));});
+    });
+    const vl=svg('line',{x1:0,x2:0,y1:T,y2:H-B,stroke:'#888','stroke-dasharray':'3 3',visibility:'hidden'}); s.appendChild(vl);
+    const day=k=>{const i=idx[k], c=r.codes[i];
+      if(c===' ') return D.days[i]+': not on the list';
+      return D.days[i]+' - '+(STATUS[c]||c)+' - price '+(r.closes[i]===null?'-':r.closes[i].toFixed(2))+' - buy price '+(r.buys[i]===null?'-':r.buys[i].toFixed(2))+
+        (r.scores[i]!==null?' - score '+r.scores[i]:'')+(r.alerts[i]==='1'?' - ALERT':'');};
+    s.addEventListener('mousemove',ev=>{const bb=s.getBoundingClientRect(), x=ev.clientX-bb.left; let k=Math.round((x-L)*(idx.length-1)/(W-L-R)); if(idx.length<2) k=0;
+      k=Math.max(0,Math.min(idx.length-1,k)); vl.setAttribute('x1',X(k)); vl.setAttribute('x2',X(k)); vl.setAttribute('visibility','visible'); ro.textContent=day(k);});
+    s.addEventListener('mouseleave',()=>{vl.setAttribute('visibility','hidden');});
+    box.appendChild(s);
+    const lg=el('div','hint'); lg.textContent='Blue line = price (close). Orange line = buy price. A gap = not on the list that day, or no buy price (watch only).'; box.appendChild(lg);
+  } else box.appendChild(el('p','hint','No prices to draw for this stock.'));
+  // table: one row per run day the stock was listed, newest first
+  const t=el('table'), hr=el('tr'); ['Date','Status','Price','Buy price'].forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
+  for(let k=idx.length-1;k>=0;k--){const i=idx[k], c=r.codes[i]; if(c===' ') continue;
+    const tr=el('tr'); tr.appendChild(el('td',null,D.days[i])); tr.appendChild(el('td',null,(STATUS[c]||c)+(r.alerts[i]==='1'?' (ALERT)':'')));
+    tr.appendChild(el('td',null,r.closes[i]===null?'-':r.closes[i].toFixed(2))); tr.appendChild(el('td',null,r.buys[i]===null?'-':r.buys[i].toFixed(2))); t.appendChild(tr);}
+  const tw=el('div'); tw.style.cssText='max-height:150px;overflow-y:auto;margin-top:6px'; tw.appendChild(t); box.appendChild(tw);
+  return box;
+}
+function render(){
+  const all=D.rows, list=sorted(all.filter(matches));
+  const n=(limit===0)?list.length:Math.min(shown,list.length), part=list.slice(0,n);
+  // left table
+  const wrap=$('wrap'); wrap.innerHTML='';
+  if(!all.length){wrap.textContent='No screener runs yet. Run a screen on the hub page first.'; $('count').textContent=''; $('moreBox').innerHTML=''; return;}
+  const t=el('table'), hr=el('tr');
+  COLS.forEach(([k,label])=>{const th=el('th',NAR[k]?'nar':null,label+(sortKey===k?(sortDir<0?' ▼':' ▲'):'')); if(k==='vs_nifty') th.title='vs Nifty score';
+    th.onclick=()=>{ if(sortKey===k) sortDir=-sortDir; else {sortKey=k; sortDir=(k==='symbol'||k==='quality'||k==='last_code')?1:-1;} render(); };
+    hr.appendChild(th);});
+  t.appendChild(hr);
+  part.forEach(r=>{
+    const tr=el('tr','sym'+(open===r.symbol?' pick':'')); const dim=r.listed_now!=='Yes';
+    tr.onclick=()=>{open=(open===r.symbol)?null:r.symbol; render();};
+    tr.appendChild(el('td',null,r.symbol));
+    tr.appendChild(el('td',dim?'dim':null,(STATUS[r.last_code]||r.last_code)+(dim?' (last seen '+r.last_seen+')':'')));
+    tr.appendChild(el('td','nar',r.appearances));
+    tr.appendChild(el('td',null,r.breakouts+(r.weak?' (+'+r.weak+' weak)':'')));
+    {const la=el('td',r.last_alert?null:'dim',r.last_alert||'none'); if(!r.last_alert) la.title='No alert so far (best score '+fmt(r.best_score)+'). An alert needs a score of 70 or more and the Nifty gate on.'; tr.appendChild(la);}
+    tr.appendChild(el('td',null,r.last_buy===null?'-':r.last_buy.toFixed(2)));
+    tr.appendChild(el('td',null,fmt(r.quality)));
+    tr.appendChild(el('td','nar',r.vs_nifty===null?'-':r.vs_nifty.toFixed(1)));
+    t.appendChild(tr);
+    if(open===r.symbol){const pr=el('tr'), pd=el('td','panel'); pd.colSpan=COLS.length; pd.appendChild(detail(r)); pr.appendChild(pd); t.appendChild(pr);}
+  });
+  wrap.appendChild(t);
+  // journey strip (one scroll box for all rows, so every row scrolls together)
+  const right=el('div','right'), rows=el('div','rows');
+  const head=el('div','line head');
+  D.days.forEach(d=>{const p=d.split('-'), h=el('div','dayh'); h.appendChild(el('b',null,String(parseInt(p[2],10)))); h.appendChild(el('span',null,MON[parseInt(p[1],10)-1])); h.title=d; head.appendChild(h);});
+  rows.appendChild(head);
+  part.forEach(r=>{
+    const line=el('div','line clk'+(open===r.symbol?' pick':''));
+    line.onclick=()=>{open=(open===r.symbol)?null:r.symbol; render();};
+    for(let i=0;i<D.days.length;i++){
+      const code=r.codes[i], c=el('div','cell'); const day=D.days[i];
+      if(code!==' '){
+        c.textContent=code; c.style.background=D.fills[code]||'#ccc'; c.style.color=D.fonts[code]||'#000';
+        const sc=r.scores[i]; c.title=day+': '+(STATUS[code]||code)+(sc!==null?' (score '+sc+')':'')+(r.alerts[i]==='1'?' - ALERT':'');
+        if(r.alerts[i]==='1') c.appendChild(el('i'));
+      } else c.title=day+': not on the list';
+      line.appendChild(c);
+    }
+    rows.appendChild(line);
+    if(open===r.symbol) rows.appendChild(el('div','spacer'));
+  });
+  right.appendChild(rows); wrap.appendChild(right);
+  right.scrollLeft=right.scrollWidth;   // newest days in view; older days are to the left
+  const stripPx=D.strip_days*CW; if(right.clientWidth>stripPx) right.style.flex='0 0 '+stripPx+'px';
+  // count line and "Show more"
+  const hidden=all.length-list.length;
+  $('count').textContent='Showing '+n+' of '+list.length+' matching stocks. '+hidden+' other stock'+(hidden===1?' is':'s are')+
+    ' hidden by the view and the filters ('+all.length+' stocks in all).';
+  const box=$('moreBox'); box.innerHTML='';
+  if(limit!==0&&n<list.length){const b=el('button','more','Show more ('+Math.min(limit,list.length-n)+' more)'); b.onclick=()=>{shown+=limit; render();}; box.appendChild(b);}
+}
+function reset(){shown=limit||25; render();}
+function resetAll(){   // back to the default: Worth following, no filters, no search, default sort, 25 rows
+  view='worth'; open=null; sortKey=null; sortDir=-1; limit=D.first_rows; shown=limit;
+  $('fstatus').value=''; $('falert').value=''; $('fqual').value=''; $('fmin').value='0'; $('fsym').value=''; $('frows').value=String(limit);
+  $('views').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',VIEWS[i][0]===view));
+  render();
+}
+function setup(){
+  const vb=$('views');
+  VIEWS.forEach(([k,label])=>{const b=el('button','v'+(k===view?' on':''),label);
+    b.onclick=()=>{view=k; vb.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); reset();}; vb.appendChild(b);});
+  const fs=$('fstatus'); fs.appendChild(Object.assign(el('option'),{value:'',textContent:'Any'}));
+  Object.keys(STATUS).forEach(c=>fs.appendChild(Object.assign(el('option'),{value:c,textContent:STATUS[c]})));
+  ['fstatus','falert','fqual','fmin','fsym'].forEach(id=>{$(id).addEventListener(id==='fsym'||id==='fmin'?'input':'change',reset);});
+  $('frows').onchange=()=>{limit=parseInt($('frows').value,10); shown=limit; render();};
+  $('freset').onclick=resetAll;
+  const lg=$('legend');
+  D.legend.forEach(([c,text])=>{const s=el('span','leg'); const b=el('b',null,c==='(blank)'?'':c);
+    if(D.fills[c]){b.style.background=D.fills[c]; b.style.color=D.fonts[c]||'#000';} else b.style.border='1px solid #bbb';
+    s.appendChild(b); s.appendChild(document.createTextNode(text)); lg.appendChild(s);});
+  const al=el('span','leg'); const dot=el('b',null,'●'); dot.style.color='#d22'; al.appendChild(dot);
+  al.appendChild(document.createTextNode('Alert that day (score 70 or more)')); lg.appendChild(al);
+  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The strip shows the last '+D.strip_days+
+    ' days; scroll it to the left for older days. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
+  D.rows.forEach((r,i)=>{r._i=i;});
+  render();
+}
+fetch('/api/tracker').then(r=>r.json()).then(d=>{D=d; limit=D.first_rows; shown=limit; setup();});
 </script></body></html>"""
 
 

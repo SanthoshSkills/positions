@@ -28,7 +28,8 @@ from origin import ORIGIN, with_origin
 
 OUTPUT_DIR = Path("output")
 RECENT_DAYS = 20          # "worth following" needs the stock on the list within the last this many data days
-FIRST_ROWS = 25           # the web page shows this many rows first (used by the hub page later)
+FIRST_ROWS = 25           # the web page shows this many rows first (the "Rows" menu can change it)
+WEB_STRIP_DAYS = 30       # the journey strip on the web page shows this many data days; older days scroll to the left
 
 BREAKOUT, BREAKOUT_WV = "Breakout", "Breakout, weak volume"
 NEAR, BASE, EXTENDED = "Near breakout price", "Building base", "Extended - wait for pullback"
@@ -77,7 +78,8 @@ def load_history(output_dir=OUTPUT_DIR):
             h[c] = np.nan
     h["alert"] = h["alert"].fillna("").astype(str).replace("nan", "")
     h["watch_only"] = h["watch_only"].fillna("").astype(str).replace("nan", "")
-    h["day"] = h["day"].astype(str)
+    h["day"] = h["day"].astype(str).str.strip()
+    h = h[h["day"].str.fullmatch(r"\d{4}-\d{2}-\d{2}")]       # discard rows whose date is missing or not a date (NaN, NaT, blank)
     h = h[HIST_COLS].sort_values(["day", "run_date", "symbol"])
     h = h.drop_duplicates(["day", "symbol"], keep="last")
     return h.reset_index(drop=True)
@@ -247,8 +249,73 @@ def build(output_dir=OUTPUT_DIR):
             "transitions": transitions(h), "history": h, "notes": notes_text(h)}
 
 
+def _num(v, digits=2):
+    """A number for the web page, or None when the value is missing."""
+    try:
+        return None if pd.isna(v) else round(float(v), digits)
+    except (TypeError, ValueError):
+        return None
+
+
+def web_data(output_dir=OUTPUT_DIR):
+    """
+    Everything the web page (/tracker in hub_web.py) needs, as plain Python data.
+    rows = one per stock, in leaderboard order. codes = one letter per data day ("" -> space = not listed that day),
+    alerts = "1" or "0" per data day, scores = readiness score per data day (None = not listed or no score).
+    """
+    h = load_history(output_dir)
+    out = {"origin": ORIGIN, "recent_days": RECENT_DAYS, "first_rows": FIRST_ROWS, "strip_days": WEB_STRIP_DAYS,
+           "days": [], "rows": [], "legend": [[c, t] for c, t in CODE_TEXT],
+           "fills": {c: "#" + f for c, f in CODE_FILL.items()}, "fonts": {c: "#" + f for c, f in CODE_FONT.items()}}
+    if h.empty:
+        return out
+    lb = leaderboard(h)
+    days = sorted(h["day"].unique())
+    pos = {d: i for i, d in enumerate(days)}
+    out["days"] = days
+    by = {s: g.sort_values("day") for s, g in h.groupby("symbol")}
+    for _, r in lb.iterrows():
+        g = by[r["symbol"]]
+        codes, alerts, scores = [" "] * len(days), ["0"] * len(days), [None] * len(days)
+        closes, buys = [None] * len(days), [None] * len(days)
+        for d, st, wo, al, sc, cl, by_ in zip(g["day"], g["status"], g["watch_only"], g["alert"], g["readiness_score"],
+                                              g["last_close"], g["buy_above"]):
+            i = pos[d]
+            codes[i] = cell_code(st, wo)
+            alerts[i] = "1" if al == "Yes" else "0"
+            scores[i] = _num(sc, 1)
+            closes[i], buys[i] = _num(cl), _num(by_)
+        last = g.iloc[-1]
+        alert_rows = g[g["alert"] == "Yes"]
+        buy = g["buy_above"].dropna()
+        stop = g["stop_loss"].dropna()
+        tgt = g["target_price"].dropna()
+        vs = g["vs_nifty_score"].dropna()
+        counts = {}
+        for c in codes:
+            if c != " ":
+                counts[c] = counts.get(c, 0) + 1
+        out["rows"].append({
+            "symbol": r["symbol"], "worth": r["worth_following"],
+            "breakouts": int(r["breakouts"]), "weak": int(r["breakout_weak_volume"]),
+            "appearances": int(r["appearances"]), "listed_now": r["listed_now"],
+            "last_code": cell_code(last["status"], last["watch_only"]), "last_seen": r["last_seen"],
+            "alert_days": int(r["alert_days"]), "last_alert": alert_rows["day"].iloc[-1] if len(alert_rows) else "",
+            "last_buy": _num(buy.iloc[-1]) if len(buy) else None,
+            "quality": "" if pd.isna(last["quality"]) else str(last["quality"]),
+            "vs_nifty": _num(vs.iloc[-1]) if len(vs) else None,
+            "codes": "".join(codes), "alerts": "".join(alerts), "scores": scores,
+            # detail panel: price and buy price per data day (None = not listed or no value), and the summary values
+            "closes": closes, "buys": buys, "counts": counts, "first_seen": r["first_seen"],
+            "last_stop": _num(stop.iloc[-1]) if len(stop) else None,
+            "last_target": _num(tgt.iloc[-1]) if len(tgt) else None,
+            "best_score": _num(r["best_score"], 1), "last_score": _num(r["last_score"], 1),
+        })
+    return out
+
+
 # ------------------------------- FILES ----------------------------------------
-CSV_TABLES = ["overview", "events", "leaderboard", "journeys", "transitions", "history"]
+CSV_TABLES =["overview", "events", "leaderboard", "journeys", "transitions", "history"]
 
 
 def csv_bytes(tables, name):

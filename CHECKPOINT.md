@@ -85,3 +85,11 @@ Ask ONE question per turn.
 - NOT changed (on purpose): the alerts log (append file, an old header would not match) and the portfolio
   data files that the user keeps and edits (`holdings` and similar).
 - Tested on made-up files only.
+
+## Reporting tracker: web page copied from `markets` (21 Nov 2026, user request)
+- `tracker.py` is the `markets` file (download names stay `5.5_tracker_...`). `hub_web.py` has the routes `/tracker` and `/api/tracker`,
+  the page `TRACKER_PAGE`, and a card "7. Tracker" with a button "Open tracker".
+- The page has the list with filters, search, Rows menu, Reset, the journey strip and the detail panel (summary, price and buy-price chart, table).
+  Rows with a date that is not a real date are discarded. See the `markets` CHECKPOINT.md for the full list of choices.
+- Only the reporting part was copied. The daily run and the strategy in this repo are not changed.
+- Tested on made-up files only (data function, both routes, hub card, Excel download). Not run on real results.
