@@ -95,3 +95,4 @@ Ask ONE question per turn.
 - Tested on made-up files only (data function, both routes, hub card, Excel download). Not run on real results.
 - Updated the same day: the list is one table. The first four columns (Symbol, Status now, Breakouts, Last buy price) and the title row stay in place; the rest scrolls with the strip, which opens at the newest day. Same page as `markets`.
 - Label change (21 Nov 2026): the list column is now "Recommended buy price" (panel: "Last recommended buy price"). Same page as `markets`.
+- Frozen columns changed (21 Nov 2026, user request): now six (Symbol, Status now, Times listed, Breakouts, Recommended buy price, vs Nifty). Last alert and Quality scroll with the strip. Same page as `markets`.
