@@ -785,8 +785,8 @@ th.nar{white-space:normal;text-align:center;padding:0 6px;width:62px;line-height
 th.buy{white-space:normal;line-height:1.15;width:118px;min-width:118px}
 td.nar{text-align:center;padding:0 6px}
 tr.pick td{background:#e8f0fd!important} tr.sym{cursor:pointer}
-td.panel{padding:0;background:#fff!important;height:501px;border-bottom:2px solid #1f4e9c;white-space:normal;vertical-align:top}
-.pbox{width:640px;height:500px;overflow:hidden;padding:8px 12px;box-sizing:border-box}
+td.panel{padding:0;background:#fff!important;height:auto;border-bottom:2px solid #1f4e9c;white-space:normal;vertical-align:top}
+.pbox{width:640px;height:auto;overflow:visible;padding:8px 12px;box-sizing:border-box}
 .pbox h3{margin:0 0 4px;font-size:17px} .pbox p{margin:2px 0;font-size:14px}
 .pbox table{width:100%} .pbox th{height:26px;cursor:default;font-size:13px} .pbox td{height:22px;font-size:13px}
 #readout{font-size:13px;color:#333;min-height:18px}
