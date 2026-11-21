@@ -1076,13 +1076,15 @@ function drawEvents(){
 function drawTransitions(){
   const bx=$('ovtrans'); bx.innerHTML='';
   if(!D.transitions.length){bx.appendChild(el('p','hint','No data yet.')); return;}
-  const H=['Within (run days)','Near-breakout episodes started','Episodes with a full window','Strong Breakout','Weak-volume breakout only','Either (total)','Strong %','Either %','Weak-volume share of either %'];
-  const K=['within_run_days','episodes_started','full_window','became_breakout','became_weak_volume_only','became_either','percent_strong','percent_either','weak_share_percent'];
+  const H=['Within (run days)','Near-breakout episodes started','Strong Breakout','Weak-volume breakout only','Either (total)','Still open','No breakout','Strong %','Either %','Weak-volume share of either %'];
+  const K=['within_run_days','episodes_started','became_breakout','became_weak_volume_only','became_either','still_open','no_breakout','percent_strong','percent_either','weak_share_percent'];
   const t=el('table','plain'), hr=el('tr'); H.forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
   D.transitions.forEach(r=>{const tr=el('tr'); K.forEach(k=>tr.appendChild(el('td',null,r[k]===null?'-':String(r[k])))); t.appendChild(tr);});
   bx.appendChild(t);
-  bx.appendChild(el('p','hint','An episode starts on the first day of an unbroken run of Near breakout price. Run days are days with a screener run. Only episodes with a full window are counted. '+
-    'The counts do not overlap: Strong = at least one strong Breakout day in the window. Weak-volume only = a weak-volume breakout day but no strong Breakout. Either = both added. '+
+  bx.appendChild(el('p','hint','Every episode is counted once. An episode starts on the first day of an unbroken run of Near breakout price. Run days are days with a screener run. '+
+    'Strong = at least one strong Breakout day in the window. Weak-volume only = a weak-volume breakout day but no strong Breakout. Either = both added. '+
+    'Still open = no breakout yet and the window is not finished (the data ends first). No breakout = the window is finished and there was none. '+
+    'The percentages are shares of ALL episodes started. They are "so far" figures: they can only rise while episodes are still open. '+
     'The weak-volume share = weak-volume only divided by either.'));
 }
 function drawLegend(){

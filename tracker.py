@@ -10,7 +10,7 @@ It reads every output/<date>/results.csv (one row = one stock on one data day) a
   Leaderboard  one row per stock: how often it appeared and in which status. Highest Breakout count first.
   Journeys     one line per stock, one cell per data day (see the code letters in Notes)
   Transitions  of the near-breakout stocks, how many became a breakout within 5 and 10 run days
-               (strong Breakout, weak-volume breakout only, either, and the weak-volume share)
+               (strong Breakout, weak-volume breakout only, either, still open, none, and the weak-volume share)
   History      every row (raw)
 The hub page (hub_web.py) offers the same files in its Download menu.
 
@@ -192,13 +192,20 @@ def events(ov):
 def transitions(h):
     """
     Of the near-breakout episodes (the first day of an unbroken run of 'Near breakout price'),
-    how many became a breakout within 5 or 10 run days. Only episodes with a full window are counted.
-    The counts do not overlap: an episode with at least one strong Breakout day in the window counts as "strong".
-    An episode with only weak-volume breakout days (no strong Breakout) counts as "weak volume only".
-    "either" = strong + weak volume only. weak_share_percent = weak volume only, as a share of "either".
+    how many became a breakout within 5 or 10 run days. EVERY episode is counted, in one of four groups:
+      strong      at least one strong Breakout day in the window (so far)
+      weak only   a weak-volume breakout day but no strong Breakout (so far)
+      still open  no breakout yet, and the window is not finished (the data ends before the window does)
+      none        no breakout, and the window is finished
+    The groups do not overlap: episodes_started = strong + weak only + still open + none.
+    "either" = strong + weak only. The percentages use ALL episodes started, so they are "so far" figures:
+    "still open" episodes can still turn into breakouts, so these percentages can only go up as run days are added.
+    weak_share_percent = weak only, as a share of "either".
+    (Planned: after a few weeks, count only episodes with a finished window. Then the percentages use
+    strong + weak only + none as the base.)
     """
-    cols = ["within_run_days", "episodes_started", "full_window", "became_breakout", "became_weak_volume_only",
-            "became_either", "percent_strong", "percent_either", "weak_share_percent"]
+    cols = ["within_run_days", "episodes_started", "became_breakout", "became_weak_volume_only", "became_either",
+            "still_open", "no_breakout", "percent_strong", "percent_either", "weak_share_percent"]
     if h.empty:
         return pd.DataFrame(columns=cols)
     days = sorted(h["day"].unique())
@@ -212,20 +219,26 @@ def transitions(h):
                 starts.append((s, i))
     rows = []
     for hz in (5, 10):
-        full = strong = weak = 0
+        strong = weak = still_open = none = 0
         for s, i in starts:
             window = [by[s].get(days[j]) for j in range(i + 1, min(i + hz, len(days) - 1) + 1)]
             has_strong = BREAKOUT in window
             has_weak = BREAKOUT_WV in window
-            if has_strong or has_weak or len(days) - 1 - i >= hz:
-                full += 1
-                strong += int(has_strong)
-                weak += int(has_weak and not has_strong)
+            if has_strong:
+                strong += 1
+            elif has_weak:
+                weak += 1
+            elif len(days) - 1 - i >= hz:
+                none += 1
+            else:
+                still_open += 1
         either = strong + weak
+        n = len(starts)
         pct = lambda a, b: round(100 * a / b, 1) if b else np.nan   # noqa: E731
-        rows.append({"within_run_days": hz, "episodes_started": len(starts), "full_window": full,
-                     "became_breakout": strong, "became_weak_volume_only": weak, "became_either": either,
-                     "percent_strong": pct(strong, full), "percent_either": pct(either, full),
+        rows.append({"within_run_days": hz, "episodes_started": n, "became_breakout": strong,
+                     "became_weak_volume_only": weak, "became_either": either,
+                     "still_open": still_open, "no_breakout": none,
+                     "percent_strong": pct(strong, n), "percent_either": pct(either, n),
                      "weak_share_percent": pct(weak, either)})
     return pd.DataFrame(rows, columns=cols)
 
@@ -244,9 +257,11 @@ def notes_text(h):
         ("Nifty gate (Overview)", "OFF = the run had watch-only stocks. ON = near-breakout stocks with a normal plan. "
                                   "unknown = no near-breakout stocks, or the run is older than the watch-only feature."),
         ("Transitions", "An episode starts on the first day of an unbroken run of 'Near breakout price'. "
-                        "Run days are days with a screener run, not trading days. Only episodes with a full window are counted. "
-                        "The counts do not overlap: strong = at least one strong Breakout day in the window; weak volume only = "
-                        "a weak-volume breakout day but no strong Breakout; either = both added; weak_share_percent = weak volume only / either."),
+                        "Run days are days with a screener run, not trading days. Every episode is counted in one group: "
+                        "strong (at least one strong Breakout day in the window), weak volume only (a weak-volume breakout day but no strong Breakout), "
+                        "still open (no breakout yet and the window is not finished) or none (no breakout and the window is finished). "
+                        "either = strong + weak volume only. The percentages are shares of ALL episodes started, so they are 'so far' figures and can only rise "
+                        "while episodes are still open. weak_share_percent = weak volume only / either."),
         ("Not built yet", "Outcomes (target, stop-loss or still open for each recommendation)."),
     ]
     lines += [("Journey code " + c, t) for c, t in CODE_TEXT]
