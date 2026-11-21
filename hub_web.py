@@ -776,11 +776,14 @@ td{padding:0 10px;height:29px;font-size:15px;white-space:nowrap;border-bottom:1p
 tr:nth-child(even) td{background:#fafbfd}
 th[data-f]{z-index:4} td[data-f]{position:sticky;z-index:1}
 .lastf{border-right:2px solid #1f4e9c!important}
-th.dh{width:26px;min-width:26px;padding:0;text-align:center;cursor:default;font-size:11px;font-weight:normal;line-height:1.15;color:#222}
+th.dh{width:26px;min-width:26px;padding:0;text-align:center;cursor:pointer;font-size:11px;font-weight:normal;line-height:1.15;color:#222}
 th.dh b{display:block;font-size:14px}
 td.dc{width:26px;min-width:26px;padding:0;text-align:center;font-weight:bold;font-size:13px;position:relative;border-right:1px solid #fff}
 td.dc i{position:absolute;top:1px;right:1px;width:6px;height:6px;border-radius:50%;background:#d22;border:1px solid #fff}
 .dim{color:#888}
+th.dh:hover{background:#d3e0f5}
+#wk{display:none;background:#e8f0fd;border:1px solid #1f4e9c;border-radius:20px;padding:2px 6px 2px 12px;font-size:14px}
+#wk button{border:0;background:#1f4e9c;color:white;border-radius:50%;width:20px;height:20px;margin-left:6px;cursor:pointer;font-size:13px;line-height:18px;padding:0}
 th.nar{white-space:normal;text-align:center;padding:0 6px;width:62px;line-height:1.15}
 th.buy{white-space:normal;line-height:1.15;width:118px;min-width:118px}
 td.nar{text-align:center;padding:0 6px}
@@ -815,6 +818,7 @@ h2{font-size:18px;margin:2px 0 8px} h3{font-size:16px;margin:10px 0 4px}
 <label>Symbol <input class='s' id='fsym' placeholder='search symbol'></label>
 <label>Rows <select id='frows'><option>25</option><option>50</option><option>100</option><option value='0'>All</option></select></label>
 <button class='v' id='freset'>Reset</button>
+<span id='wk'></span>
 </div>
 <div class='hint' id='info'></div>
 </div>
@@ -849,6 +853,7 @@ const NAR={appearances:1,vs_nifty:1};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const CW=26;   // width of one strip cell in pixels
 let open=null; // symbol whose detail panel is open
+let weekSel=null, weekIdx=[];   // weekSel = the Monday (YYYY-MM-DD) of the week picked by a click on a date header; weekIdx = the day positions in that week
 let D=null, view='worth', limit=25, shown=25, sortKey=null, sortDir=-1;
 function el(tag,cls,text){const e=document.createElement(tag); if(cls)e.className=cls; if(text!==undefined)e.textContent=text; return e;}
 function fmt(v){return v===null||v===undefined||v===''?'-':String(v);}
@@ -861,6 +866,7 @@ function matches(r){
   const q=$('fqual').value; if(q&&r.quality!==q) return false;
   if(r.appearances<(parseInt($('fmin').value,10)||0)) return false;
   const s=$('fsym').value.trim().toUpperCase(); if(s&&!r.symbol.toUpperCase().includes(s)) return false;
+  if(weekSel&&!weekIdx.some(i=>r.codes[i]!==' ')) return false;   // listed on at least one run day of the picked week
   return true;
 }
 function sorted(list){
@@ -939,7 +945,22 @@ function detail(r){
   const tw=el('div'); tw.style.cssText='max-height:150px;overflow-y:auto;margin-top:6px'; tw.appendChild(t); box.appendChild(tw);
   return box;
 }
+function monday(d){const t=new Date(d+'T00:00:00Z'); t.setUTCDate(t.getUTCDate()-((t.getUTCDay()+6)%7)); return t.toISOString().slice(0,10);}
+function dm(d){const p=d.split('-'); return parseInt(p[2],10)+' '+MON[parseInt(p[1],10)-1];}
+function pickWeek(d){   // a click on a date header: filter to that calendar week (Monday to Sunday); a second click on the same week clears it
+  const m=monday(d); weekSel=(weekSel===m)?null:m;
+  weekIdx=[]; if(weekSel) D.days.forEach((x,i)=>{if(monday(x)===weekSel) weekIdx.push(i);});
+  shown=limit||25; open=null; render();
+}
+function weekLabel(){
+  const w=$('wk'); w.innerHTML='';
+  if(!weekSel){w.style.display='none'; return;}
+  const e=new Date(weekSel+'T00:00:00Z'); e.setUTCDate(e.getUTCDate()+6);
+  w.style.display='inline-block'; w.appendChild(document.createTextNode('Week of '+dm(weekSel)+' to '+dm(e.toISOString().slice(0,10))+' (Mon to Sun)'));
+  const b=el('button',null,'\u00d7'); b.title='Clear the week filter'; b.onclick=()=>{weekSel=null; weekIdx=[]; shown=limit||25; render();}; w.appendChild(b);
+}
 function render(){
+  weekLabel();
   const all=D.rows, list=sorted(all.filter(matches));
   const n=(limit===0)?list.length:Math.min(shown,list.length), part=list.slice(0,n);
   const wrap=$('wrap'), oldL=wrap.scrollLeft, oldT=wrap.scrollTop, atEnd=(wrap.scrollLeft+wrap.clientWidth>=wrap.scrollWidth-25); wrap.innerHTML='';
@@ -949,7 +970,7 @@ function render(){
     if(ci<FROZEN) th.dataset.f=ci; if(ci===FROZEN-1) th.classList.add('lastf');
     th.onclick=()=>{ if(sortKey===k) sortDir=-sortDir; else {sortKey=k; sortDir=(k==='symbol'||k==='quality'||k==='last_code')?1:-1;} render(); };
     hr.appendChild(th);});
-  D.days.forEach(d=>{const p=d.split('-'), h=el('th','dh'); h.appendChild(el('b',null,String(parseInt(p[2],10)))); h.appendChild(document.createTextNode(MON[parseInt(p[1],10)-1])); h.title=d; hr.appendChild(h);});
+  D.days.forEach(d=>{const p=d.split('-'), h=el('th','dh'); h.appendChild(el('b',null,String(parseInt(p[2],10)))); h.appendChild(document.createTextNode(MON[parseInt(p[1],10)-1])); h.title=d+' - click to show only the stocks listed in this week'; h.onclick=()=>pickWeek(d); hr.appendChild(h);});
   t.appendChild(hr);
   part.forEach(r=>{
     const tr=el('tr','sym'+(open===r.symbol?' pick':'')); const dim=r.listed_now!=='Yes';
@@ -1103,7 +1124,7 @@ function showTab(t){
 }
 function reset(){shown=limit||25; render();}
 function resetAll(){   // back to the default: Worth following, no filters, no search, default sort, 25 rows
-  view='worth'; open=null; scrollEnd=true; sortKey=null; sortDir=-1; limit=D.first_rows; shown=limit;
+  view='worth'; open=null; weekSel=null; weekIdx=[]; scrollEnd=true; sortKey=null; sortDir=-1; limit=D.first_rows; shown=limit;
   $('fstatus').value=''; $('falert').value=''; $('fqual').value=''; $('fmin').value='0'; $('fsym').value=''; $('frows').value=String(limit);
   $('views').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',VIEWS[i][0]===view));
   render();
@@ -1125,7 +1146,7 @@ function setup(){
     s.appendChild(b); s.appendChild(document.createTextNode(text)); lg.appendChild(s);});
   const al=el('span','leg'); const dot=el('b',null,'●'); dot.style.color='#d22'; al.appendChild(dot);
   al.appendChild(document.createTextNode('Alert that day (score 70 or more)')); lg.appendChild(al);
-  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The six columns and the title row stay in place. Quality and last alert are in the detail panel (click a stock). The strip opens at the newest day; scroll left for older days. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
+  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The six columns and the title row stay in place. Quality and last alert are in the detail panel (click a stock). The strip opens at the newest day; scroll left for older days. Click a date header to show only the stocks listed in that week; click it again to clear. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
   D.rows.forEach((r,i)=>{r._i=i;});
   scrollEnd=true; render();   // the list is drawn while it is visible (the frozen columns need real widths), then the page opens on the Overview
   showTab('ov');
