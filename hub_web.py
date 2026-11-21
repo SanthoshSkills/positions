@@ -903,7 +903,7 @@ function detail(r){
 function render(){
   const all=D.rows, list=sorted(all.filter(matches));
   const n=(limit===0)?list.length:Math.min(shown,list.length), part=list.slice(0,n);
-  const wrap=$('wrap'), oldL=wrap.scrollLeft, oldT=wrap.scrollTop, atEnd=(wrap.scrollLeft+wrap.clientWidth>=wrap.scrollWidth-3); wrap.innerHTML='';
+  const wrap=$('wrap'), oldL=wrap.scrollLeft, oldT=wrap.scrollTop, atEnd=(wrap.scrollLeft+wrap.clientWidth>=wrap.scrollWidth-25); wrap.innerHTML='';
   if(!all.length){wrap.textContent='No screener runs yet. Run a screen on the hub page first.'; $('count').textContent=''; $('moreBox').innerHTML=''; return;}
   const t=el('table'), hr=el('tr'), ND=D.days.length;
   COLS.forEach(([k,label],ci)=>{const th=el('th',(k==='last_buy'?'buy':(NAR[k]?'nar':null)),label+(sortKey===k?(sortDir<0?' ▼':' ▲'):'')); if(k==='vs_nifty') th.title='vs Nifty score';
@@ -944,7 +944,7 @@ function render(){
   // freeze: each frozen column sticks at the sum of the widths of the frozen columns before it
   const ths=hr.children; let left=0;
   for(let ci=0;ci<FROZEN;ci++){const w=ths[ci].offsetWidth; t.querySelectorAll('[data-f="'+ci+'"]').forEach(c=>{c.style.left=left+'px';}); left+=w;}
-  if(scrollEnd||atEnd){wrap.scrollLeft=wrap.scrollWidth; wrap.scrollTop=oldT; scrollEnd=false;} else {wrap.scrollLeft=oldL; wrap.scrollTop=oldT;}
+  if(scrollEnd||atEnd){wrap.scrollLeft=1e9; wrap.scrollTop=oldT; scrollEnd=false; setTimeout(()=>{wrap.scrollLeft=1e9;},60);}   // again after the layout settles else {wrap.scrollLeft=oldL; wrap.scrollTop=oldT;}
   // count line and "Show more"
   const hidden=all.length-list.length;
   $('count').textContent='Showing '+n+' of '+list.length+' matching stocks. '+hidden+' other stock'+(hidden===1?' is':'s are')+
