@@ -769,29 +769,25 @@ select,input{font-size:15px;padding:4px 6px;border:1px solid #999;border-radius:
 input.n{width:60px} input.s{width:170px}
 label{color:#333;font-size:14px}
 .hint{color:#555;font-size:14px}
-.wrap{display:flex;align-items:flex-start;overflow-x:auto}
-table{border-collapse:collapse;flex:none}
-th{background:#e8eef8;font-size:14px;text-align:left;padding:0 10px;height:46px;cursor:pointer;white-space:nowrap;border-bottom:2px solid #1f4e9c}
-td{padding:0 10px;height:28px;font-size:15px;white-space:nowrap;border-bottom:1px solid #ddd}
+.wrap{overflow:auto;max-height:78vh;position:relative}
+table{border-collapse:separate;border-spacing:0}
+th{background:#e8eef8;font-size:14px;text-align:left;padding:0 10px;height:46px;cursor:pointer;white-space:nowrap;border-bottom:2px solid #1f4e9c;position:sticky;top:0;z-index:2;box-sizing:border-box}
+td{padding:0 10px;height:29px;font-size:15px;white-space:nowrap;border-bottom:1px solid #ddd;box-sizing:border-box;background:#fff}
 tr:nth-child(even) td{background:#fafbfd}
+th[data-f]{z-index:4} td[data-f]{position:sticky;z-index:1}
+.lastf{border-right:2px solid #1f4e9c!important}
+th.dh{width:26px;min-width:26px;padding:0;text-align:center;cursor:default;font-size:11px;font-weight:normal;line-height:1.15;color:#222}
+th.dh b{display:block;font-size:14px}
+td.dc{width:26px;min-width:26px;padding:0;text-align:center;font-weight:bold;font-size:13px;position:relative;border-right:1px solid #fff}
+td.dc i{position:absolute;top:1px;right:1px;width:6px;height:6px;border-radius:50%;background:#d22;border:1px solid #fff}
 .dim{color:#888}
-.right{flex:1 1 300px;min-width:300px;overflow-x:auto}
-.rows{display:flex;flex-direction:column;width:max-content}
-.line{display:flex;height:29px;border-bottom:1px solid #ddd;box-sizing:border-box}
-.line.head{height:46px;border-bottom:2px solid #1f4e9c;background:#e8eef8}
-.line:not(.head):nth-child(odd){background:#fafbfd}
-.cell{width:26px;flex:none;height:28px;line-height:28px;text-align:center;font-size:13px;font-weight:bold;position:relative;box-sizing:border-box;border-right:1px solid #fff}
-.cell i{position:absolute;top:1px;right:1px;width:6px;height:6px;border-radius:50%;background:#d22;border:1px solid #fff}
-.dayh{width:26px;flex:none;height:46px;font-size:11px;color:#222;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:3px;box-sizing:border-box;line-height:1.15}
-.dayh b{font-size:14px}
 th.nar{white-space:normal;text-align:center;padding:0 6px;width:62px;line-height:1.15}
 td.nar{text-align:center;padding:0 6px}
-tr.pick td{background:#e8f0fd!important} tr.sym{cursor:pointer} .line.pick{background:#e8f0fd!important} .line.clk{cursor:pointer}
+tr.pick td{background:#e8f0fd!important} tr.sym{cursor:pointer}
 td.panel{padding:0;background:#fff!important;height:471px;border-bottom:2px solid #1f4e9c;white-space:normal;vertical-align:top}
 .pbox{width:640px;height:470px;overflow:hidden;padding:8px 12px;box-sizing:border-box}
 .pbox h3{margin:0 0 4px;font-size:17px} .pbox p{margin:2px 0;font-size:14px}
 .pbox table{width:100%} .pbox th{height:26px;cursor:default;font-size:13px} .pbox td{height:22px;font-size:13px}
-.spacer{height:471px;border-bottom:2px solid #1f4e9c;box-sizing:border-box;background:#fff}
 #readout{font-size:13px;color:#333;min-height:18px}
 .leg{display:inline-block;margin:2px 14px 2px 0;font-size:14px}
 .leg b{display:inline-block;width:22px;text-align:center;border-radius:3px;margin-right:6px}
@@ -823,8 +819,10 @@ td.panel{padding:0;background:#fff!important;height:471px;border-bottom:2px soli
 const $=id=>document.getElementById(id);
 const VIEWS=[['worth','Worth following'],['now','Listed now'],['broke','Ever broke out'],['all','All stocks']];
 const STATUS={B:'Breakout',W:'Breakout, weak volume',N:'Near breakout',n:'Near breakout (watch only)',S:'Building base',E:'Extended'};
-const COLS=[['symbol','Symbol'],['last_code','Status now'],['appearances','Times listed'],['breakouts','Breakouts'],
- ['last_alert','Last alert'],['last_buy','Last buy price'],['quality','Quality'],['vs_nifty','vs Nifty']];
+const COLS=[['symbol','Symbol'],['last_code','Status now'],['breakouts','Breakouts'],['last_buy','Last buy price'],
+ ['appearances','Times listed'],['last_alert','Last alert'],['quality','Quality'],['vs_nifty','vs Nifty']];
+const FROZEN=4;      // the first four columns stay in place when the table scrolls sideways
+let scrollEnd=true;  // true = the next drawing scrolls to the newest day (the right end)
 const NAR={appearances:1,vs_nifty:1};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const CW=26;   // width of one strip cell in pixels
@@ -904,52 +902,48 @@ function detail(r){
 function render(){
   const all=D.rows, list=sorted(all.filter(matches));
   const n=(limit===0)?list.length:Math.min(shown,list.length), part=list.slice(0,n);
-  // left table
-  const wrap=$('wrap'); wrap.innerHTML='';
+  const wrap=$('wrap'), oldL=wrap.scrollLeft, oldT=wrap.scrollTop; wrap.innerHTML='';
   if(!all.length){wrap.textContent='No screener runs yet. Run a screen on the hub page first.'; $('count').textContent=''; $('moreBox').innerHTML=''; return;}
-  const t=el('table'), hr=el('tr');
-  COLS.forEach(([k,label])=>{const th=el('th',NAR[k]?'nar':null,label+(sortKey===k?(sortDir<0?' ▼':' ▲'):'')); if(k==='vs_nifty') th.title='vs Nifty score';
+  const t=el('table'), hr=el('tr'), ND=D.days.length;
+  COLS.forEach(([k,label],ci)=>{const th=el('th',NAR[k]?'nar':null,label+(sortKey===k?(sortDir<0?' ▼':' ▲'):'')); if(k==='vs_nifty') th.title='vs Nifty score';
+    if(ci<FROZEN) th.dataset.f=ci; if(ci===FROZEN-1) th.classList.add('lastf');
     th.onclick=()=>{ if(sortKey===k) sortDir=-sortDir; else {sortKey=k; sortDir=(k==='symbol'||k==='quality'||k==='last_code')?1:-1;} render(); };
     hr.appendChild(th);});
+  D.days.forEach(d=>{const p=d.split('-'), h=el('th','dh'); h.appendChild(el('b',null,String(parseInt(p[2],10)))); h.appendChild(document.createTextNode(MON[parseInt(p[1],10)-1])); h.title=d; hr.appendChild(h);});
   t.appendChild(hr);
   part.forEach(r=>{
     const tr=el('tr','sym'+(open===r.symbol?' pick':'')); const dim=r.listed_now!=='Yes';
     tr.onclick=()=>{open=(open===r.symbol)?null:r.symbol; render();};
-    tr.appendChild(el('td',null,r.symbol));
-    tr.appendChild(el('td',dim?'dim':null,(STATUS[r.last_code]||r.last_code)+(dim?' (last seen '+r.last_seen+')':'')));
-    tr.appendChild(el('td','nar',r.appearances));
-    tr.appendChild(el('td',null,r.breakouts+(r.weak?' (+'+r.weak+' weak)':'')));
-    {const la=el('td',r.last_alert?null:'dim',r.last_alert||'none'); if(!r.last_alert) la.title='No alert so far (best score '+fmt(r.best_score)+'). An alert needs a score of 70 or more and the Nifty gate on.'; tr.appendChild(la);}
-    tr.appendChild(el('td',null,r.last_buy===null?'-':r.last_buy.toFixed(2)));
-    tr.appendChild(el('td',null,fmt(r.quality)));
-    tr.appendChild(el('td','nar',r.vs_nifty===null?'-':r.vs_nifty.toFixed(1)));
-    t.appendChild(tr);
-    if(open===r.symbol){const pr=el('tr'), pd=el('td','panel'); pd.colSpan=COLS.length; pd.appendChild(detail(r)); pr.appendChild(pd); t.appendChild(pr);}
-  });
-  wrap.appendChild(t);
-  // journey strip (one scroll box for all rows, so every row scrolls together)
-  const right=el('div','right'), rows=el('div','rows');
-  const head=el('div','line head');
-  D.days.forEach(d=>{const p=d.split('-'), h=el('div','dayh'); h.appendChild(el('b',null,String(parseInt(p[2],10)))); h.appendChild(el('span',null,MON[parseInt(p[1],10)-1])); h.title=d; head.appendChild(h);});
-  rows.appendChild(head);
-  part.forEach(r=>{
-    const line=el('div','line clk'+(open===r.symbol?' pick':''));
-    line.onclick=()=>{open=(open===r.symbol)?null:r.symbol; render();};
-    for(let i=0;i<D.days.length;i++){
-      const code=r.codes[i], c=el('div','cell'); const day=D.days[i];
+    const add=(cls,text,title)=>{const td=el('td',cls,text); if(title) td.title=title; tr.appendChild(td); return td;};
+    add(null,r.symbol);
+    const sd=r.last_seen.split('-'), seen=parseInt(sd[2],10)+' '+MON[parseInt(sd[1],10)-1];
+    add(dim?'dim':null,(STATUS[r.last_code]||r.last_code)+(dim?', seen '+seen:''),dim?'Not on the list on the newest day. Last seen '+r.last_seen:null);
+    add(null,r.breakouts+(r.weak?' (+'+r.weak+' weak)':''));
+    add(null,r.last_buy===null?'-':r.last_buy.toFixed(2));
+    add('nar',r.appearances);
+    add(r.last_alert?null:'dim',r.last_alert||'none',r.last_alert?null:'No alert so far (best score '+fmt(r.best_score)+'). An alert needs a score of 70 or more and the Nifty gate on.');
+    add(null,fmt(r.quality));
+    add('nar',r.vs_nifty===null?'-':r.vs_nifty.toFixed(1));
+    const cells=tr.children; for(let ci=0;ci<FROZEN;ci++){cells[ci].dataset.f=ci;} cells[FROZEN-1].classList.add('lastf');
+    for(let i=0;i<ND;i++){
+      const code=r.codes[i], c=el('td','dc'), day=D.days[i];
       if(code!==' '){
         c.textContent=code; c.style.background=D.fills[code]||'#ccc'; c.style.color=D.fonts[code]||'#000';
         const sc=r.scores[i]; c.title=day+': '+(STATUS[code]||code)+(sc!==null?' (score '+sc+')':'')+(r.alerts[i]==='1'?' - ALERT':'');
         if(r.alerts[i]==='1') c.appendChild(el('i'));
       } else c.title=day+': not on the list';
-      line.appendChild(c);
+      tr.appendChild(c);
     }
-    rows.appendChild(line);
-    if(open===r.symbol) rows.appendChild(el('div','spacer'));
+    t.appendChild(tr);
+    if(open===r.symbol){   // detail panel: one row under the stock; the box stays at the left edge while the table scrolls sideways
+      const pr=el('tr'), pd=el('td','panel'); pd.colSpan=COLS.length+ND;
+      const hold=el('div'); hold.style.cssText='position:sticky;left:0;width:640px'; hold.appendChild(detail(r)); pd.appendChild(hold); pr.appendChild(pd); t.appendChild(pr);}
   });
-  right.appendChild(rows); wrap.appendChild(right);
-  right.scrollLeft=right.scrollWidth;   // newest days in view; older days are to the left
-  const stripPx=D.strip_days*CW; if(right.clientWidth>stripPx) right.style.flex='0 0 '+stripPx+'px';
+  wrap.appendChild(t);
+  // freeze: each frozen column sticks at the sum of the widths of the frozen columns before it
+  const ths=hr.children; let left=0;
+  for(let ci=0;ci<FROZEN;ci++){const w=ths[ci].offsetWidth; t.querySelectorAll('[data-f="'+ci+'"]').forEach(c=>{c.style.left=left+'px';}); left+=w;}
+  if(scrollEnd){wrap.scrollLeft=wrap.scrollWidth; scrollEnd=false;} else {wrap.scrollLeft=oldL; wrap.scrollTop=oldT;}
   // count line and "Show more"
   const hidden=all.length-list.length;
   $('count').textContent='Showing '+n+' of '+list.length+' matching stocks. '+hidden+' other stock'+(hidden===1?' is':'s are')+
@@ -959,7 +953,7 @@ function render(){
 }
 function reset(){shown=limit||25; render();}
 function resetAll(){   // back to the default: Worth following, no filters, no search, default sort, 25 rows
-  view='worth'; open=null; sortKey=null; sortDir=-1; limit=D.first_rows; shown=limit;
+  view='worth'; open=null; scrollEnd=true; sortKey=null; sortDir=-1; limit=D.first_rows; shown=limit;
   $('fstatus').value=''; $('falert').value=''; $('fqual').value=''; $('fmin').value='0'; $('fsym').value=''; $('frows').value=String(limit);
   $('views').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',VIEWS[i][0]===view));
   render();
@@ -979,10 +973,9 @@ function setup(){
     s.appendChild(b); s.appendChild(document.createTextNode(text)); lg.appendChild(s);});
   const al=el('span','leg'); const dot=el('b',null,'●'); dot.style.color='#d22'; al.appendChild(dot);
   al.appendChild(document.createTextNode('Alert that day (score 70 or more)')); lg.appendChild(al);
-  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The strip shows the last '+D.strip_days+
-    ' days; scroll it to the left for older days. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
+  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The first four columns and the title row stay in place. The strip opens at the newest day; scroll left for older days. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
   D.rows.forEach((r,i)=>{r._i=i;});
-  render();
+  scrollEnd=true; render();
 }
 fetch('/api/tracker').then(r=>r.json()).then(d=>{D=d; limit=D.first_rows; shown=limit; setup();});
 </script></body></html>"""
