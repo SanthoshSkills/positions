@@ -821,7 +821,7 @@ const $=id=>document.getElementById(id);
 const VIEWS=[['worth','Worth following'],['now','Listed now'],['broke','Ever broke out'],['all','All stocks']];
 const STATUS={B:'Breakout',W:'Breakout, weak volume',N:'Near breakout',n:'Near breakout (watch only)',S:'Building base',E:'Extended'};
 const COLS=[['symbol','Symbol'],['last_code','Status now'],['appearances','Times listed'],['breakouts','Breakouts'],['last_buy','Recommended buy price'],
- ['vs_nifty','vs Nifty'],['last_alert','Last alert'],['quality','Quality']];
+ ['vs_nifty','vs Nifty']];
 const FROZEN=6;      // the first six columns stay in place when the table scrolls sideways
 let scrollEnd=true;  // true = the next drawing scrolls to the newest day (the right end)
 const NAR={appearances:1,vs_nifty:1};
@@ -861,7 +861,8 @@ function detail(r){
   box.appendChild(el('p',null,'First listed '+r.first_seen+'. Last listed '+r.last_seen+'. Times listed: '+r.appearances+'.'));
   box.appendChild(el('p',null,'Days per status - '+(cn||'none')+'.'));
   box.appendChild(el('p',null,'Last recommended buy price '+(r.last_buy===null?'-':r.last_buy.toFixed(2))+'. Stop-loss '+(r.last_stop===null?'-':r.last_stop.toFixed(2))+
-    '. Target '+(r.last_target===null?'-':r.last_target.toFixed(2))+'. Last alert '+(r.last_alert||'none')+'.'));
+    '. Target '+(r.last_target===null?'-':r.last_target.toFixed(2))+'.'));
+  box.appendChild(el('p',null,'Quality: '+fmt(r.quality)+'. Last alert: '+(r.last_alert||'none (best score '+fmt(r.best_score)+'; an alert needs 70 or more and the Nifty gate on)')+'.'));
   // days from the first listed day to the newest data day
   let a=0; while(a<nd&&r.codes[a]===' ') a++;
   const idx=[]; for(let i=a;i<nd;i++) idx.push(i);
@@ -923,8 +924,6 @@ function render(){
     add(null,r.breakouts+(r.weak?' (+'+r.weak+' weak)':''));
     add(null,r.last_buy===null?'-':r.last_buy.toFixed(2));
     add('nar',r.vs_nifty===null?'-':r.vs_nifty.toFixed(1));
-    add(r.last_alert?null:'dim',r.last_alert||'none',r.last_alert?null:'No alert so far (best score '+fmt(r.best_score)+'). An alert needs a score of 70 or more and the Nifty gate on.');
-    add(null,fmt(r.quality));
     const cells=tr.children; for(let ci=0;ci<FROZEN;ci++){cells[ci].dataset.f=ci;} cells[FROZEN-1].classList.add('lastf');
     for(let i=0;i<ND;i++){
       const code=r.codes[i], c=el('td','dc'), day=D.days[i];
@@ -974,7 +973,7 @@ function setup(){
     s.appendChild(b); s.appendChild(document.createTextNode(text)); lg.appendChild(s);});
   const al=el('span','leg'); const dot=el('b',null,'●'); dot.style.color='#d22'; al.appendChild(dot);
   al.appendChild(document.createTextNode('Alert that day (score 70 or more)')); lg.appendChild(al);
-  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The first six columns and the title row stay in place. The strip opens at the newest day; scroll left for older days. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
+  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The six columns and the title row stay in place. Quality and last alert are in the detail panel (click a stock). The strip opens at the newest day; scroll left for older days. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
   D.rows.forEach((r,i)=>{r._i=i;});
   scrollEnd=true; render();
 }
