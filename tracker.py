@@ -52,8 +52,8 @@ CODE_FILL = {"B": "1B7F3B", "W": "8FCB9B", "N": "E0A800", "n": "F3DE9A", "S": "D
 CODE_FONT = {"B": "FFFFFF"}
 
 HIST_COLS = ["day", "run_date", "symbol", "status", "readiness_score", "alert", "watch_only", "quality",
-             "last_close", "buy_above", "stop_loss", "target_price", "suggested_qty", "tight_base",
-             "vs_nifty_score", "pct_below_52w_high"]
+             "last_close", "buy_above", "pullback_price", "pullback_buy", "stop_loss", "target_price",
+             "suggested_qty", "tight_base", "vs_nifty_score", "pct_below_52w_high"]
 
 
 # ------------------------------- DATA -----------------------------------------
@@ -315,18 +315,21 @@ def web_data(output_dir=OUTPUT_DIR):
     by = {s: g.sort_values("day") for s, g in h.groupby("symbol")}
     for _, r in lb.iterrows():
         g = by[r["symbol"]]
+        # Recommended buy price: the entry price; on Extended days (no entry now) the buy price AFTER the pullback.
+        g = g.assign(rec_buy=g["buy_above"].fillna(g["pullback_buy"]))
         codes, alerts, scores = [" "] * len(days), ["0"] * len(days), [None] * len(days)
-        closes, buys = [None] * len(days), [None] * len(days)
-        for d, st, wo, al, sc, cl, by_ in zip(g["day"], g["status"], g["watch_only"], g["alert"], g["readiness_score"],
-                                              g["last_close"], g["buy_above"]):
+        closes, buys, targets = [None] * len(days), [None] * len(days), [None] * len(days)
+        pulls = [None] * len(days)
+        for d, st, wo, al, sc, cl, by_, tg, pb in zip(g["day"], g["status"], g["watch_only"], g["alert"], g["readiness_score"],
+                                                      g["last_close"], g["rec_buy"], g["target_price"], g["pullback_price"]):
             i = pos[d]
             codes[i] = cell_code(st, wo)
             alerts[i] = "1" if al == "Yes" else "0"
             scores[i] = _num(sc, 1)
-            closes[i], buys[i] = _num(cl), _num(by_)
+            closes[i], buys[i], targets[i], pulls[i] = _num(cl), _num(by_), _num(tg), _num(pb)
         last = g.iloc[-1]
         alert_rows = g[g["alert"] == "Yes"]
-        buy = g["buy_above"].dropna()
+        buy = g["rec_buy"].dropna()
         stop = g["stop_loss"].dropna()
         tgt = g["target_price"].dropna()
         vs = g["vs_nifty_score"].dropna()
@@ -345,7 +348,7 @@ def web_data(output_dir=OUTPUT_DIR):
             "vs_nifty": _num(vs.iloc[-1]) if len(vs) else None,
             "codes": "".join(codes), "alerts": "".join(alerts), "scores": scores,
             # detail panel: price and buy price per data day (None = not listed or no value), and the summary values
-            "closes": closes, "buys": buys, "counts": counts, "first_seen": r["first_seen"],
+            "closes": closes, "buys": buys, "targets": targets, "pulls": pulls, "counts": counts, "first_seen": r["first_seen"],
             "last_stop": _num(stop.iloc[-1]) if len(stop) else None,
             "last_target": _num(tgt.iloc[-1]) if len(tgt) else None,
             "best_score": _num(r["best_score"], 1), "last_score": _num(r["last_score"], 1),

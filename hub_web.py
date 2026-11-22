@@ -888,12 +888,12 @@ function detail(r){
   box.appendChild(el('p',null,'First listed '+r.first_seen+'. Last listed '+r.last_seen+'. Times listed: '+r.appearances+'.'));
   box.appendChild(el('p',null,'Days per status - '+(cn||'none')+'.'));
   box.appendChild(el('p',null,'Last recommended buy price '+(r.last_buy===null?'-':r.last_buy.toFixed(2))+'. Stop-loss '+(r.last_stop===null?'-':r.last_stop.toFixed(2))+
-    '. Target '+(r.last_target===null?'-':r.last_target.toFixed(2))+'.'));
+    '. Target '+(r.last_target===null?'-':r.last_target.toFixed(2))+'.'+(()=>{const pv=r.pulls.filter(v=>v!==null); return (r.last_code==='E'&&pv.length)?' Extended: pullback target '+pv[pv.length-1].toFixed(2)+', then buy above '+(r.last_buy===null?'-':r.last_buy.toFixed(2))+'.':'';})()));
   box.appendChild(el('p',null,'Quality: '+fmt(r.quality)+'. Last alert: '+(r.last_alert||'none (best score '+fmt(r.best_score)+'; an alert needs 70 or more and the Nifty gate on)')+'.'));
   // days from the first listed day to the newest data day
   let a=0; while(a<nd&&r.codes[a]===' ') a++;
   const idx=[]; for(let i=a;i<nd;i++) idx.push(i);
-  const vals=[]; idx.forEach(i=>{if(r.closes[i]!==null) vals.push(r.closes[i]); if(r.buys[i]!==null) vals.push(r.buys[i]);});
+  const vals=[]; idx.forEach(i=>{if(r.closes[i]!==null) vals.push(r.closes[i]); if(r.buys[i]!==null) vals.push(r.buys[i]); if(r.targets[i]!==null) vals.push(r.targets[i]); if(r.pulls[i]!==null) vals.push(r.pulls[i]);});
   const ro=el('div',null,'Hover the chart to see a day.'); ro.id='readout'; box.appendChild(ro);
   if(vals.length){
     const W=616,H=178,L=48,R=8,T=30,B=18; let lo=Math.min(...vals), hi=Math.max(...vals); if(hi===lo){hi+=1; lo-=1;} const pad=(hi-lo)*0.08; lo-=pad; hi+=pad;
@@ -903,7 +903,7 @@ function detail(r){
       const t=svg('text',{x:L-4,y:y+4,'text-anchor':'end','font-size':11,fill:'#555'}); t.textContent=v.toFixed(0); s.appendChild(t);}
     const lab=(k)=>{const d=D.days[idx[k]]; const t=svg('text',{x:X(k),y:H-4,'text-anchor':k===0?'start':(k===idx.length-1?'end':'middle'),'font-size':11,fill:'#555'}); t.textContent=d.slice(5); s.appendChild(t);};
     lab(0); if(idx.length>2) lab(Math.floor((idx.length-1)/2)); if(idx.length>1) lab(idx.length-1);
-    [['closes','#1f4e9c'],['buys','#e07b00']].forEach(([key,col])=>{
+    [['closes','#1f4e9c'],['buys','#e07b00'],['targets','#7b3fa0'],['pulls','#2a9d8f']].forEach(([key,col])=>{
       let path='', pen=false;
       idx.forEach((i,k)=>{const v=r[key][i]; if(v===null){pen=false;return;} path+=(pen?'L':'M')+X(k)+' '+Y(v)+' '; pen=true;});
       s.appendChild(svg('path',{d:path.trim(),fill:'none',stroke:col,'stroke-width':2}));
@@ -925,7 +925,7 @@ function detail(r){
     const vl=svg('line',{x1:0,x2:0,y1:T,y2:H-B,stroke:'#888','stroke-dasharray':'3 3',visibility:'hidden'}); s.appendChild(vl);
     const day=k=>{const i=idx[k], c=r.codes[i];
       if(c===' ') return D.days[i]+': not on the list';
-      return D.days[i]+' - '+(STATUS[c]||c)+' - price '+(r.closes[i]===null?'-':r.closes[i].toFixed(2))+' - recommended buy price '+(r.buys[i]===null?'-':r.buys[i].toFixed(2))+
+      return D.days[i]+' - '+(STATUS[c]||c)+' - price '+(r.closes[i]===null?'-':r.closes[i].toFixed(2))+' - recommended buy price '+(r.buys[i]===null?'-':r.buys[i].toFixed(2))+' - target '+(r.targets[i]===null?'-':r.targets[i].toFixed(2))+(r.pulls[i]!==null?' - pullback target '+r.pulls[i].toFixed(2):'')+
         (r.scores[i]!==null?' - score '+r.scores[i]:'')+(r.alerts[i]==='1'?' - ALERT':'');};
     s.addEventListener('mousemove',ev=>{const bb=s.getBoundingClientRect(), x=ev.clientX-bb.left; let k=Math.round((x-L)*(idx.length-1)/(W-L-R)); if(idx.length<2) k=0;
       k=Math.max(0,Math.min(idx.length-1,k)); vl.setAttribute('x1',X(k)); vl.setAttribute('x2',X(k)); vl.setAttribute('visibility','visible'); ro.textContent=day(k);});
@@ -934,14 +934,14 @@ function detail(r){
     const lg=el('div','hint'); lg.style.fontSize='13px';
     const sw=col=>{const g=svg('svg',{width:34,height:10}); g.appendChild(svg('line',{x1:3,y1:5,x2:31,y2:5,stroke:col,'stroke-width':5,'stroke-linecap':'round'})); g.style.cssText='vertical-align:middle;margin-right:4px'; return g;};
     const item=(col,text)=>{const sp=el('span'); sp.style.marginRight='18px'; sp.style.whiteSpace='nowrap'; sp.appendChild(sw(col)); sp.appendChild(document.createTextNode(text)); return sp;};
-    lg.appendChild(item('#1f4e9c','Price (close)')); lg.appendChild(item('#e07b00','Recommended buy price'));
-    lg.appendChild(el('div',null,'Letter box = the status that day (same letters as the strip). When the chart is crowded, boxes show only where the status changes. A gap = not on the list that day, or no buy price (watch only).')); box.appendChild(lg);
+    lg.appendChild(item('#1f4e9c','Price (close)')); lg.appendChild(item('#e07b00','Recommended buy price')); lg.appendChild(item('#7b3fa0','Target')); lg.appendChild(item('#2a9d8f','Pullback target (extended stocks)'));
+    lg.appendChild(el('div',null,'Letter box = the status that day (same letters as the strip). When the chart is crowded, boxes show only where the status changes. On an Extended day the buy price is the price to buy at AFTER the pullback (pivot + 0.5%), and the pullback target is the pivot. A gap = not on the list that day, or a day from before these prices were added.')); box.appendChild(lg);
   } else box.appendChild(el('p','hint','No prices to draw for this stock.'));
   // table: one row per run day the stock was listed, newest first
-  const t=el('table'), hr=el('tr'); ['Date','Status','Price','Recommended buy price'].forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
+  const t=el('table'), hr=el('tr'); ['Date','Status','Price','Recommended buy price','Target','Pullback target'].forEach(h=>hr.appendChild(el('th',null,h))); t.appendChild(hr);
   for(let k=idx.length-1;k>=0;k--){const i=idx[k], c=r.codes[i]; if(c===' ') continue;
     const tr=el('tr'); tr.appendChild(el('td',null,D.days[i])); tr.appendChild(el('td',null,(STATUS[c]||c)+(r.alerts[i]==='1'?' (ALERT)':'')));
-    tr.appendChild(el('td',null,r.closes[i]===null?'-':r.closes[i].toFixed(2))); tr.appendChild(el('td',null,r.buys[i]===null?'-':r.buys[i].toFixed(2))); t.appendChild(tr);}
+    tr.appendChild(el('td',null,r.closes[i]===null?'-':r.closes[i].toFixed(2))); tr.appendChild(el('td',null,r.buys[i]===null?'-':r.buys[i].toFixed(2))); tr.appendChild(el('td',null,r.targets[i]===null?'-':r.targets[i].toFixed(2))); tr.appendChild(el('td',null,r.pulls[i]===null?'-':r.pulls[i].toFixed(2))); t.appendChild(tr);}
   const tw=el('div'); tw.style.cssText='max-height:150px;overflow-y:auto;margin-top:6px'; tw.appendChild(t); box.appendChild(tw);
   return box;
 }

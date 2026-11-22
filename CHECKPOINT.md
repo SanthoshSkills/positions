@@ -102,3 +102,19 @@ Ask ONE question per turn.
 - Transitions table changed (21 Nov 2026, user request): every episode is counted once, in four groups: strong, weak volume only, still open, none. The `full_window` column is gone; new columns `still_open` and `no_breakout`. The percentages are shares of all episodes started ("so far" figures). Same as `markets`. Tested on made-up files only.
 - Detail panel fix (21 Nov 2026, user screenshots): the panel had a fixed height of 500 px and cut off its own date table when the text was larger. The panel now grows with its content. Same as `markets`. Tested on made-up data at normal size and 1.5x zoom.
 - Week filter (21 Nov 2026, user request): a click on a date header in the List strip shows only the stocks listed on at least one run day in that calendar week (Monday to Sunday). A label "Week of ..." with an x button shows next to Reset. Click a header of the same week again, the x, or Reset to clear. It works together with the view, the filters and the symbol search. The strip keeps all days (no highlight). Same as `markets`. Tested on made-up data.
+
+## Pullback prices, target in tracker chart, charts, backfill: copied from `markets` (22 Nov 2026, user request)
+Done with the `positions` logic (old strategy: no Nifty gate, no WATCH ONLY, no readiness score). Tested on made-up data only. NOT run on real data.
+- `nse_screener.py` `analyze()`: for "Extended - wait for pullback" stocks, `pullback_price` = the pivot and `pullback_buy` = pivot + 0.5% (the normal entry rule).
+  `buy_above`, stop-loss, target and quantity stay EMPTY for Extended (no entry now), so `redeploy.py`, `paper_tracker.py` and `backtest.py` are not affected.
+  New columns in `results.csv`: `pullback_price`, `pullback_buy` (empty for other statuses).
+- Shown in the screen report (price line, classic chart title), the candlestick report (`candle_view.py`), and the charts: `ha_chart.py` (default style) draws a teal dotted
+  "Pullback target" line and a green dotted "Buy above (after pullback)" line; the classic chart adds a dash-dot "Buy above (after pullback)" line.
+- Tracker (`tracker.py`, `hub_web.py` page): the detail chart has a Target line (purple) and, for Extended stocks, a Pullback target line (teal); on Extended days the
+  "Recommended buy price" is the buy price after the pullback. Table has Target and Pullback target columns. The csv/Excel history has the two new columns.
+- NOT done here (as in `markets`): `stock_lookup.py` (own copy of the plan), `portfolio.py` holding charts (they have no pullback prices).
+- WATCH ONLY buy price: not applicable here (this repo has no Nifty gate).
+- Backfill: new `backfill_pullback.py`. The user must run it on their computer (needs Yahoo and the `output/` folder):
+  `python backfill_pullback.py --dry-run`, then `python backfill_pullback.py`. It fills only EMPTY cells for Extended rows, scales the pivot to the saved close,
+  skips rows where the saved close differs from Yahoo by more than 5% (split or bonus), keeps `results.csv.before_backfill`, and marks rows `backfilled = Yes`.
+  The user has NOT run it yet.

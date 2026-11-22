@@ -359,9 +359,13 @@ def analyze(df, bench):
     resists = sorted([b for b in bands if b["low"] >= last], key=lambda b: b["low"])
 
     # 7. Entry, stop and position size
+    pullback = pullback_buy = float("nan")
     if status.startswith("Extended"):
         entry = stop = qty = target = float("nan")
         stop_basis = ""
+        # Extended: no entry now. Wait for a pullback to the pivot, then buy at the pivot + 0.5% (the normal entry rule).
+        pullback = pivot
+        pullback_buy = pivot * 1.005
     else:
         entry = pivot * 1.005
         stop, stop_basis = choose_stop(entry, bands)
@@ -376,6 +380,8 @@ def analyze(df, bench):
         "last_close": round(last, 2),
         "status": status,
         "buy_above": round(entry, 2) if entry == entry else None,
+        "pullback_price": round(pullback, 2) if pullback == pullback else None,
+        "pullback_buy": round(pullback_buy, 2) if pullback_buy == pullback_buy else None,
         "stop_loss": round(stop, 2) if stop == stop else None,
         "stop_loss_pct": round((stop / entry - 1) * 100, 1) if stop == stop else None,
         "target_price": round(target, 2) if target == target else None,
@@ -438,6 +444,8 @@ def draw_panel(ax, data, title, window, mas, per_year, res, daily=False,
         ax.axhline(res["_pivot"], color="green", linestyle=":", linewidth=2, label="Breakout price")
         if res["stop_loss"]:
             ax.axhline(res["stop_loss"], color="red", linestyle=":", linewidth=2, label="Stop-loss")
+        if res.get("pullback_buy"):      # Extended stock: the pivot line above is the pullback target
+            ax.axhline(res["pullback_buy"], color="darkgreen", linestyle="-.", linewidth=2, label="Buy above (after pullback)")
 
     ax.set_ylim(lo * 0.95, hi * 1.05)
     loc_ = mdates.AutoDateLocator(minticks=3, maxticks=5)  # fewer, cleaner date labels
@@ -474,8 +482,13 @@ def make_chart(symbol, df, res, out_path):
                [(10, "10-month avg", "tab:blue")], 12, res, **kw)
     buy, stop = res["buy_above"], res["stop_loss"]
     last = res["last_close"]
-    plan = (f"latest {last} | buy above {buy} / stop {stop} / target {res['target_price']}" if buy
-            else f"latest {last} | extended - no entry now")
+    if buy:
+        plan = f"latest {last} | buy above {buy} / stop {stop} / target {res['target_price']}"
+    elif res.get("pullback_price"):
+        plan = (f"latest {last} | extended - no entry now | wait for a pullback to {res['pullback_price']}, "
+                f"then buy above {res['pullback_buy']}")
+    else:
+        plan = f"latest {last} | extended - no entry now"
     fig.suptitle(f"{symbol}  -  {res['status']}   |   {plan}")
     fig.savefig(out_path, dpi=dpi)
     plt.close(fig)
@@ -492,11 +505,14 @@ def live_links_html(symbol):
             f"rel='noopener'>Yahoo chart</a>")
 
 
-def price_line_html(last, day, buy, stop):
+def price_line_html(last, day, buy, stop, pullback=None, pullback_buy=None):
     """One line: latest price, buy-above, stop-loss with the loss if stopped, target with the profit."""
     parts = [f"Latest price <b>{last:,.2f}</b> (close of {day})"]
     if pd.isna(buy):
-        parts.append("No buy price (extended: wait for a pullback)")
+        parts.append("No buy price now (extended: wait for a pullback)")
+        if pullback is not None and not pd.isna(pullback):
+            parts.append(f"Pullback target <b>{pullback:,.2f}</b> ({(pullback / last - 1) * 100:+.1f}% from latest)")
+            parts.append(f"Buy above <b>{pullback_buy:,.2f}</b> after the pullback")
         return " &nbsp;|&nbsp; ".join(parts)
     parts.append(f"Buy above <b>{buy:,.2f}</b> ({(buy / last - 1) * 100:+.1f}% from latest)")
     if not pd.isna(stop):
@@ -528,7 +544,7 @@ def write_report(shown, hidden, out_dir):
         parts.append(
             f"<div id='{r['symbol']}'><h2>{r['symbol']} &nbsp;<span class='q {q}'>{q}</span> &nbsp;"
             f"<a class='cv' href='candle_report.html#{r['symbol']}' target='candle_view'>candlesticks</a> &nbsp;{live_links_html(r['symbol'])}</h2>"
-            f"<p>{price_line_html(r['last_close'], r['data_date'], r['buy_above'], r['stop_loss'])}</p>"
+            f"<p>{price_line_html(r['last_close'], r['data_date'], r['buy_above'], r['stop_loss'], r.get('pullback_price'), r.get('pullback_buy'))}</p>"
             f"<p>{notes}</p><img class='chart' title='Click to zoom' src='charts/{r['symbol']}.png'></div>"
         )
     hid = ""
@@ -637,6 +653,7 @@ def main():
         make_chart(row["symbol"], prices[row["symbol"]], row, out_dir / "charts" / f"{row['symbol']}.png")
 
     cols = ["symbol", "data_date", "status", "quality", "quality_notes", "last_close", "buy_above",
+            "pullback_price", "pullback_buy",
             "stop_loss", "stop_loss_pct", "target_price", "profit_pct", "stop_basis", "suggested_qty", "tight_base", "base_depth_pct",
             "pct_below_52w_high", "return_6m_pct", "return_12m_pct", "vs_nifty_score",
             "volume_vs_avg", "avg_daily_value_cr", "support_band", "resistance_band"]

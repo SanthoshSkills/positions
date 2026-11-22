@@ -398,7 +398,8 @@ def draw_panel(ax, tf, info, row, bands, levels, last_close):
     ax.plot(x, ma.values, color="tab:blue", linewidth=1.8, label=label)
 
     # buy-above and stop-loss lines
-    for key, color, name in (("buy", GREEN, "Buy above"), ("stop", RED, "Stop-loss"), ("target", "tab:purple", "Target")):
+    for key, color, name in (("buy", GREEN, "Buy above"), ("stop", RED, "Stop-loss"), ("target", "tab:purple", "Target"),
+                             ("pullback", "#2a9d8f", "Pullback target"), ("pullback_buy", GREEN, "Buy above (after pullback)")):
         v = levels.get(key)
         if v and lim[0] <= v <= lim[1]:
             ax.axhline(v, color=color, linestyle=":", linewidth=2, label=name)
@@ -477,7 +478,8 @@ def make_chart(symbol, row, tfs, bands, levels, last_close, out_path):
     tgt = levels.get("target")
     plan = (f"buy above {buy:.2f} / stop {stop:.2f} / target {tgt:.2f}" if buy and stop
             else ("your holding" + (f" / your stop {stop:.2f}" if stop else "")) if levels.get("holding")
-            else "extended - no entry now")
+            else (f"extended - no entry now | wait for a pullback to {levels['pullback']:.2f}, then buy above {levels['pullback_buy']:.2f}"
+                  if levels.get("pullback") and levels.get("pullback_buy") else "extended - no entry now"))
     fig.suptitle(f"{symbol}  -  {row['status']}   |   latest price {last_close:,.2f}   |   {plan}")
     fig.savefig(out_path, dpi=dpi)
     plt.close(fig)
@@ -616,7 +618,8 @@ def formations_html(tf, info):
 def price_line(tfs, row):
     d = tfs["D"]["bars"]
     return ns.price_line_html(float(d["Close"].iloc[-1]), d.index[-1].strftime("%d %b %Y"),
-                              row["buy_above"], row["stop_loss"])
+                              row["buy_above"], row["stop_loss"],
+                              row.get("pullback_price"), row.get("pullback_buy"))
 
 
 def stock_html(symbol, row, tfs):
@@ -678,6 +681,15 @@ def write_report(rows, out_dir, last_dates):
 
 
 # ------------------------------- MAIN -----------------------------------------
+def _opt(v):
+    """A price from a results row, or None when it is empty or missing."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if v != v else v
+
+
 def build(symbol, df, row):
     """Everything for one stock: {tf: info}, plus the support/resistance bands and levels."""
     daily, dropped = drop_partial(naive(df))
@@ -686,6 +698,7 @@ def build(symbol, df, row):
     buy = None if pd.isna(row["buy_above"]) else float(row["buy_above"])
     stop = None if pd.isna(row["stop_loss"]) else float(row["stop_loss"])
     levels = {"holding": bool(row.get("holding", False)), "buy": buy, "stop": stop, "pivot": buy / 1.005 if buy else None, "sup": sup, "res": res,
+              "pullback": _opt(row.get("pullback_price")), "pullback_buy": _opt(row.get("pullback_buy")),
               "last": last_close, "target": ns.target_price(buy, stop) if buy and stop else None}
     series = {"D": daily, "W": ns.resample_ohlc(daily, "W"), "M": ns.resample_ohlc(daily, "M")}
     tfs = {}

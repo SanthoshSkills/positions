@@ -326,6 +326,12 @@ def draw_timeframe(axes, tf, bars, forming, res, extra_levels, font):
             levels.append((stop, RED, "Stop-loss"))
         if target:
             levels.append((target, PURPLE, "Target"))
+        # Extended stocks: wait for a pullback to the pivot, then buy above the pivot + 0.5%
+        pull, pull_buy = _num(res.get("pullback_price")), _num(res.get("pullback_buy"))
+        if pull:
+            levels.append((pull, "#2a9d8f", "Pullback target"))
+        if pull_buy:
+            levels.append((pull_buy, GREEN, "Buy above (after pullback)"))
         levels += list(extra_levels or [])
     y_lo, y_hi = float(lo.min()), float(h.max())
     if tf == "D":                                   # make sure YOUR stop and cost are visible
@@ -540,8 +546,13 @@ def make_chart(symbol, df, res, out_path, font=16, layout="side", extra_levels=N
             draw_timeframe(axes, tf, series[tf], forming[tf], res, extra_levels, font)
         if title is None:
             buy, stop, tgt = _num(res.get("buy_above")), _num(res.get("stop_loss")), _num(res.get("target_price"))
-            plan = (f"buy above {buy:,.2f} / stop {stop:,.2f}" + (f" / target {tgt:,.2f}" if tgt else "")
-                    if buy and stop else "extended - no entry now")
+            pull, pull_buy = _num(res.get("pullback_price")), _num(res.get("pullback_buy"))
+            if buy and stop:
+                plan = f"buy above {buy:,.2f} / stop {stop:,.2f}" + (f" / target {tgt:,.2f}" if tgt else "")
+            elif pull and pull_buy:
+                plan = f"extended - no entry now | wait for a pullback to {pull:,.2f}, then buy above {pull_buy:,.2f}"
+            else:
+                plan = "extended - no entry now"
             title = f"{symbol}  -  {res['status']}   |   latest price {res['last_close']:,.2f}   |   {plan}"
         fig.suptitle(title, y=0.985 if layout == "side" else 0.995)
         fig.savefig(out_path, dpi=dpi)
