@@ -1,6 +1,6 @@
 # Checkpoint
 
-Last updated: 14 Nov 2026
+Last updated: 23 Nov 2026
 
 ## How to work
 - Read this file first. Read other files only when the Next action says so.
@@ -118,3 +118,11 @@ Done with the `positions` logic (old strategy: no Nifty gate, no WATCH ONLY, no 
   `python backfill_pullback.py --dry-run`, then `python backfill_pullback.py`. It fills only EMPTY cells for Extended rows, scales the pivot to the saved close,
   skips rows where the saved close differs from Yahoo by more than 5% (split or bonus), keeps `results.csv.before_backfill`, and marks rows `backfilled = Yes`.
   The user has NOT run it yet.
+
+## Tracker page: week filter, Status menu, Overview week band (23 Nov 2026, copied from markets)
+- `hub_web.py` (`TRACKER_PAGE`) only. `tracker.py` is not changed. The same patch as in `markets` (commits `11eba4a` and `31e5a8f` there). The user tested it in `markets` first.
+- List tab: many weeks (a click on a date header adds or removes a week; one tag per week with an x). The Status filter is a check-box menu ("Status: Any" or "Status (2)").
+  With weeks picked, Status, Alert and Minimum times listed look only at the days inside those weeks; the "Times listed" column shows that count too.
+  With a status ticked and no column sort chosen, the list is sorted by the newest day with a ticked status.
+- Overview tab: a week band under the day labels. A click on a week box adds or removes the week (same selection as the List). Buttons "Open in List" and "Clear weeks".
+- Tested here on made-up data (headless Chrome, both tests passed). Not run on real results in this repo.

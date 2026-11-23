@@ -764,6 +764,7 @@ main{padding:14px 24px}
 .bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:6px 0}
 button.v{font-size:15px;padding:6px 14px;border-radius:6px;border:2px solid #1f4e9c;background:white;color:#1f4e9c;cursor:pointer}
 button.v.on{background:#1f4e9c;color:white}
+button.v:disabled{opacity:.45;cursor:default}
 button.more{font-size:16px;padding:8px 18px;border-radius:6px;border:0;background:#1f4e9c;color:white;cursor:pointer;margin:8px 0}
 select,input{font-size:15px;padding:4px 6px;border:1px solid #999;border-radius:5px}
 input.n{width:60px} input.s{width:170px}
@@ -782,8 +783,15 @@ td.dc{width:26px;min-width:26px;padding:0;text-align:center;font-weight:bold;fon
 td.dc i{position:absolute;top:1px;right:1px;width:6px;height:6px;border-radius:50%;background:#d22;border:1px solid #fff}
 .dim{color:#888}
 th.dh:hover{background:#d3e0f5}
-#wk{display:none;background:#e8f0fd;border:1px solid #1f4e9c;border-radius:20px;padding:2px 6px 2px 12px;font-size:14px}
-#wk button{border:0;background:#1f4e9c;color:white;border-radius:50%;width:20px;height:20px;margin-left:6px;cursor:pointer;font-size:13px;line-height:18px;padding:0}
+#wk{display:none;flex-wrap:wrap;gap:6px}
+#wk .wt{background:#e8f0fd;border:1px solid #1f4e9c;border-radius:20px;padding:2px 6px 2px 12px;font-size:14px;white-space:nowrap}
+#wk .wt button{border:0;background:#1f4e9c;color:white;border-radius:50%;width:20px;height:20px;margin-left:6px;cursor:pointer;font-size:13px;line-height:18px;padding:0}
+details.ms{position:relative;display:inline-block}
+details.ms summary{font-size:15px;padding:4px 10px;border:1px solid #999;border-radius:5px;background:#fff;cursor:pointer;list-style:none;white-space:nowrap}
+details.ms summary::-webkit-details-marker{display:none}
+details.ms .msbox{position:absolute;z-index:10;top:100%;left:0;background:#fff;border:1px solid #999;border-radius:6px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,.25);min-width:270px}
+.msbox label{display:block;padding:3px 0;font-size:15px;white-space:nowrap;cursor:pointer;color:#222}
+.msbox input{padding:0;border:0;margin:0}
 th.nar{white-space:normal;text-align:center;padding:0 6px;width:62px;line-height:1.15}
 th.buy{white-space:normal;line-height:1.15;width:118px;min-width:118px}
 td.nar{text-align:center;padding:0 6px}
@@ -811,8 +819,8 @@ h2{font-size:18px;margin:2px 0 8px} h3{font-size:16px;margin:10px 0 4px}
 <div class='card'>
 <div class='bar' id='views'></div>
 <div class='bar'>
-<label>Status <select id='fstatus'></select></label>
-<label>Alert (ever) <select id='falert'><option value=''>Any</option><option value='yes'>Yes</option><option value='no'>No</option></select></label>
+<details class='ms' id='fstatus'><summary id='stsum'>Status: Any</summary><div class='msbox' id='stbox'></div></details>
+<label title='Counts only the selected weeks. With no week selected it counts all run days.'>Alert <select id='falert'><option value=''>Any</option><option value='yes'>Yes</option><option value='no'>No</option></select></label>
 <label>Quality <select id='fqual'><option value=''>Any</option><option>STRONG</option><option>WEAK</option><option>CHECK</option></select></label>
 <label>Minimum times listed <input class='n' id='fmin' type='number' min='0' value='0'></label>
 <label>Symbol <input class='s' id='fsym' placeholder='search symbol'></label>
@@ -833,6 +841,7 @@ h2{font-size:18px;margin:2px 0 8px} h3{font-size:16px;margin:10px 0 4px}
 <div class='card'>
 <h2>Stocks per status on each run day (all stocks)</h2>
 <div id='ovlegend'></div>
+<div class='bar' id='ovwk'></div>
 <div class='hint' id='ovread'></div>
 <div style='display:flex;margin-top:6px'><div id='ovaxis'></div><div class='xs' id='ovwrap'></div></div>
 <div id='ovstocks'></div>
@@ -853,7 +862,9 @@ const NAR={appearances:1,vs_nifty:1};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const CW=26;   // width of one strip cell in pixels
 let open=null; // symbol whose detail panel is open
-let weekSel=null, weekIdx=[];   // weekSel = the Monday (YYYY-MM-DD) of the week picked by a click on a date header; weekIdx = the day positions in that week
+let weekSel=[], weekIdx=[];   // weekSel = the Mondays (YYYY-MM-DD) of the weeks picked by clicks on date headers; weekIdx = the day positions in those weeks
+let stSel=new Set();          // status letters ticked in the Status menu
+let SC=[];                    // the day positions the filters look at: the picked weeks, or all run days when no week is picked
 let D=null, view='worth', limit=25, shown=25, sortKey=null, sortDir=-1;
 function el(tag,cls,text){const e=document.createElement(tag); if(cls)e.className=cls; if(text!==undefined)e.textContent=text; return e;}
 function fmt(v){return v===null||v===undefined||v===''?'-':String(v);}
@@ -861,17 +872,27 @@ function matches(r){
   if(view==='worth'&&r.worth!=='Yes') return false;
   if(view==='now'&&r.listed_now!=='Yes') return false;
   if(view==='broke'&&r.breakouts+r.weak===0) return false;
-  const st=$('fstatus').value; if(st&&r.last_code!==st) return false;
-  const al=$('falert').value; if(al==='yes'&&r.alert_days===0) return false; if(al==='no'&&r.alert_days>0) return false;
+  // the filters below look only at the days in SC (the picked weeks, or all run days)
+  r._apps=weekSel.length?SC.reduce((n,i)=>n+(r.codes[i]!==' '?1:0),0):r.appearances;   // times listed inside the scope
+  if(stSel.size){   // listed with one of the ticked statuses on at least one day in the scope; _rec = the newest such day
+    let rec=-1; for(const i of SC){ if(stSel.has(r.codes[i])) rec=i; }
+    if(rec<0) return false; r._rec=rec;
+  } else {
+    r._rec=-1; if(weekSel.length&&r._apps===0) return false;   // weeks picked: listed on at least one day in them
+  }
+  const al=$('falert').value, ad=SC.reduce((n,i)=>n+(r.alerts[i]==='1'?1:0),0);
+  if(al==='yes'&&ad===0) return false; if(al==='no'&&ad>0) return false;
   const q=$('fqual').value; if(q&&r.quality!==q) return false;
-  if(r.appearances<(parseInt($('fmin').value,10)||0)) return false;
+  if(r._apps<(parseInt($('fmin').value,10)||0)) return false;
   const s=$('fsym').value.trim().toUpperCase(); if(s&&!r.symbol.toUpperCase().includes(s)) return false;
-  if(weekSel&&!weekIdx.some(i=>r.codes[i]!==' ')) return false;   // listed on at least one run day of the picked week
   return true;
 }
 function sorted(list){
-  if(sortKey===null) return list;
-  const k=sortKey;
+  if(sortKey===null){   // default order; with ticked statuses: the stock whose status day is newest comes first
+    if(!stSel.size) return list;
+    return list.slice().sort((a,b)=>(b._rec-a._rec)||(a._i-b._i));
+  }
+  const k=(sortKey==='appearances')?'_apps':sortKey;
   return list.slice().sort((a,b)=>{
     let x=a[k], y=b[k];
     const xn=(x===null||x===undefined||x===''), yn=(y===null||y===undefined||y==='');
@@ -947,30 +968,41 @@ function detail(r){
 }
 function monday(d){const t=new Date(d+'T00:00:00Z'); t.setUTCDate(t.getUTCDate()-((t.getUTCDay()+6)%7)); return t.toISOString().slice(0,10);}
 function dm(d){const p=d.split('-'); return parseInt(p[2],10)+' '+MON[parseInt(p[1],10)-1];}
-function pickWeek(d){   // a click on a date header: filter to that calendar week (Monday to Sunday); a second click on the same week clears it
-  const m=monday(d); weekSel=(weekSel===m)?null:m;
-  weekIdx=[]; if(weekSel) D.days.forEach((x,i)=>{if(monday(x)===weekSel) weekIdx.push(i);});
+function applyWeeks(arr){   // arr = Mondays; the day positions of those weeks are kept in weekIdx. Nothing is drawn here.
+  weekSel=arr.slice().sort();
+  weekIdx=[]; D.days.forEach((x,i)=>{if(weekSel.includes(monday(x))) weekIdx.push(i);});
+}
+function setWeeks(arr){   // a change made in the List tab: draw the list now; the Overview week band is redrawn when you open that tab
+  applyWeeks(arr); ovDirty=true;
   shown=limit||25; open=null; render();
 }
-function weekLabel(){
-  const w=$('wk'); w.innerHTML='';
-  if(!weekSel){w.style.display='none'; return;}
-  const e=new Date(weekSel+'T00:00:00Z'); e.setUTCDate(e.getUTCDate()+6);
-  w.style.display='inline-block'; w.appendChild(document.createTextNode('Week of '+dm(weekSel)+' to '+dm(e.toISOString().slice(0,10))+' (Mon to Sun)'));
-  const b=el('button',null,'\u00d7'); b.title='Clear the week filter'; b.onclick=()=>{weekSel=null; weekIdx=[]; shown=limit||25; render();}; w.appendChild(b);
+function pickWeek(d){   // a click on a date header adds that calendar week (Monday to Sunday); a second click on the same week removes it
+  const m=monday(d); setWeeks(weekSel.includes(m)?weekSel.filter(x=>x!==m):weekSel.concat([m]));
 }
+function weekLabel(){   // one tag per picked week; the x on a tag removes that week
+  const w=$('wk'); w.innerHTML='';
+  if(!weekSel.length){w.style.display='none'; return;}
+  w.style.display='inline-flex';
+  weekSel.forEach(m=>{
+    const e=new Date(m+'T00:00:00Z'); e.setUTCDate(e.getUTCDate()+6);
+    const t=el('span','wt','Week of '+dm(m)+' to '+dm(e.toISOString().slice(0,10)));
+    const b=el('button',null,'\u00d7'); b.title='Remove this week'; b.onclick=()=>setWeeks(weekSel.filter(x=>x!==m)); t.appendChild(b); w.appendChild(t);
+  });
+}
+function stLabel(){$('stsum').textContent=stSel.size?('Status ('+stSel.size+')'):'Status: Any';}
 function render(){
   weekLabel();
+  SC=weekSel.length?weekIdx:D.days.map((x,i)=>i);
   const all=D.rows, list=sorted(all.filter(matches));
   const n=(limit===0)?list.length:Math.min(shown,list.length), part=list.slice(0,n);
   const wrap=$('wrap'), oldL=wrap.scrollLeft, oldT=wrap.scrollTop, atEnd=(wrap.scrollLeft+wrap.clientWidth>=wrap.scrollWidth-25); wrap.innerHTML='';
   if(!all.length){wrap.textContent='No screener runs yet. Run a screen on the hub page first.'; $('count').textContent=''; $('moreBox').innerHTML=''; return;}
   const t=el('table'), hr=el('tr'), ND=D.days.length;
-  COLS.forEach(([k,label],ci)=>{const th=el('th',(k==='last_buy'?'buy':(NAR[k]?'nar':null)),label+(sortKey===k?(sortDir<0?' ▼':' ▲'):'')); if(k==='vs_nifty') th.title='vs Nifty score';
+  COLS.forEach(([k,label],ci)=>{const th=el('th',(k==='last_buy'?'buy':(NAR[k]?'nar':null)),label+(sortKey===k?(sortDir<0?' ▼':' ▲'):'')); if(k==='vs_nifty') th.title='vs Nifty score'; if(k==='appearances') th.title='Run days the stock was listed. With weeks picked: only days inside those weeks.';
     if(ci<FROZEN) th.dataset.f=ci; if(ci===FROZEN-1) th.classList.add('lastf');
     th.onclick=()=>{ if(sortKey===k) sortDir=-sortDir; else {sortKey=k; sortDir=(k==='symbol'||k==='quality'||k==='last_code')?1:-1;} render(); };
     hr.appendChild(th);});
-  D.days.forEach(d=>{const p=d.split('-'), h=el('th','dh'); h.appendChild(el('b',null,String(parseInt(p[2],10)))); h.appendChild(document.createTextNode(MON[parseInt(p[1],10)-1])); h.title=d+' - click to show only the stocks listed in this week'; h.onclick=()=>pickWeek(d); hr.appendChild(h);});
+  D.days.forEach(d=>{const p=d.split('-'), h=el('th','dh'); h.appendChild(el('b',null,String(parseInt(p[2],10)))); h.appendChild(document.createTextNode(MON[parseInt(p[1],10)-1])); h.title=d+' - click to add or remove this week'; h.onclick=()=>pickWeek(d); hr.appendChild(h);});
   t.appendChild(hr);
   part.forEach(r=>{
     const tr=el('tr','sym'+(open===r.symbol?' pick':'')); const dim=r.listed_now!=='Yes';
@@ -979,7 +1011,7 @@ function render(){
     add(null,r.symbol);
     const sd=r.last_seen.split('-'), seen=parseInt(sd[2],10)+' '+MON[parseInt(sd[1],10)-1];
     add(dim?'dim':null,(STATUS[r.last_code]||r.last_code)+(dim?', seen '+seen:''),dim?'Not on the list on the newest day. Last seen '+r.last_seen:null);
-    add('nar',r.appearances);
+    add('nar',r._apps);
     add(null,r.breakouts+(r.weak?' (+'+r.weak+' weak)':''));
     add(null,r.last_buy===null?'-':r.last_buy.toFixed(2));
     add('nar',r.vs_nifty===null?'-':r.vs_nifty.toFixed(1));
@@ -1013,7 +1045,20 @@ function render(){
 // ---------------- Overview tab ----------------
 const OVORDER=['B','W','N','n','S','E'];
 const GATEFILL='#f9dede';
-let selDay=null, ovDrawn=false, listScroll=[0,0];
+let selDay=null, ovDrawn=false, listScroll=[0,0], ovScroll=0;
+let ovDirty=false;    // true = the weeks changed in the List tab; the Overview band is redrawn when you open the Overview
+let listDirty=false;  // true = the weeks changed in the Overview tab; the list is redrawn when you open the List (it needs real column widths)
+function wEnd(m){const e=new Date(m+'T00:00:00Z'); e.setUTCDate(e.getUTCDate()+6); return e.toISOString().slice(0,10);}
+function toggleOvWeek(m){   // a click on a week label in the Overview: the same week selection as in the List
+  applyWeeks(weekSel.includes(m)?weekSel.filter(x=>x!==m):weekSel.concat([m]));
+  listDirty=true; drawOverview(); drawOvWeeks();
+}
+function drawOvWeeks(){   // the line above the chart: which weeks are picked, and the buttons
+  const bx=$('ovwk'); bx.innerHTML='';
+  bx.appendChild(el('span',null,weekSel.length?('Weeks picked: '+weekSel.map(m=>dm(m)+' to '+dm(wEnd(m))).join('; ')+'.'):'No week picked. Click a week label under the bars; click more labels to add weeks.'));
+  const go=el('button','v','Open in List'); go.disabled=!weekSel.length; go.title='Go to the List tab with these weeks picked'; go.onclick=()=>showTab('list'); bx.appendChild(go);
+  const cl=el('button','v','Clear weeks'); cl.disabled=!weekSel.length; cl.onclick=()=>{applyWeeks([]); listDirty=true; drawOverview(); drawOvWeeks();}; bx.appendChild(cl);
+}
 function evColor(name){return name.indexOf('gate OFF')>=0?'#c0392b':(name.indexOf('gate ON')>=0?'#1b7f3b':'#1f4e9c');}
 function ovText(o){
   const total=OVORDER.reduce((s,c)=>s+o.counts[c],0);
@@ -1023,12 +1068,12 @@ function drawOverview(){
   const ov=D.overview, n=ov.length, xs=$('ovwrap'), ax=$('ovaxis'), rd=$('ovread');
   const oldL=xs.scrollLeft, atEnd=(xs.scrollLeft+xs.clientWidth>=xs.scrollWidth-25);
   xs.innerHTML=''; ax.innerHTML='';
-  const dflt='Hover a bar to see a day. Click a bar to see the stocks of that day.';
+  const dflt='Hover a bar to see a day. Click a bar to see the stocks of that day. Click a week label under the bars to pick weeks for the List.';
   rd.textContent=dflt;
   if(!n){xs.textContent='No screener runs yet. Run a screen on the hub page first.'; return;}
   const evAt={}; D.events.forEach((e,k)=>{(evAt[e[0]]=evAt[e[0]]||[]).push(k);});
   const maxF=Math.max(1,...Object.values(evAt).map(a=>a.length));
-  const BW=18, STEP=26, PH=260, T=8+maxF*20, H=T+PH+36, XPAD=(STEP-BW)/2;
+  const BW=18, STEP=26, PH=260, T=8+maxF*20, BAND=28, H=T+PH+36+BAND, XPAD=(STEP-BW)/2, BY=T+PH+36;   // BY = top of the week band
   let mx=1; ov.forEach(o=>{mx=Math.max(mx,OVORDER.reduce((s,c)=>s+o.counts[c],0));});
   const top=Math.max(4,Math.ceil(mx/4)*4), Y=v=>T+PH-v*PH/top;
   const W=n*STEP+8;
@@ -1068,6 +1113,19 @@ function drawOverview(){
     c.addEventListener('mouseleave',()=>{rd.textContent=dflt;});
     c.addEventListener('click',()=>{selDay=(selDay===o.day)?null:o.day; drawOverview(); dayStocks();});
     s.appendChild(c);
+  });
+  // week band under the day labels: one box per calendar week (Monday to Sunday); a click adds or removes the week
+  const weeks=[]; ov.forEach((o,i)=>{const m=monday(o.day), w=weeks[weeks.length-1]; if(w&&w.m===m) w.last=i; else weeks.push({m:m,first:i,last:i});});
+  weeks.forEach(w=>{
+    const x=4+w.first*STEP+1, wd=(w.last-w.first+1)*STEP-2, on=weekSel.includes(w.m), g=svg('g',{});
+    g.style.cursor='pointer';
+    g.appendChild(svg('rect',{x:x,y:BY,width:wd,height:22,rx:3,fill:on?'#1f4e9c':'#e8eef8',stroke:'#1f4e9c'}));
+    const lab=wd>=46?dm(w.m):(wd>=22?String(parseInt(w.m.slice(8),10)):'');   // a one-day week is too narrow for the full label
+    if(lab){const t=svg('text',{x:x+wd/2,y:BY+15,'text-anchor':'middle','font-size':11,'font-weight':'bold',fill:on?'#fff':'#1f4e9c'}); t.textContent=lab; g.appendChild(t);}
+    const ti=svg('title',{}); ti.textContent='Week of '+dm(w.m)+' to '+dm(wEnd(w.m))+' (Mon to Sun) - click to '+(on?'remove':'add')+' this week'; g.appendChild(ti);
+    g.addEventListener('click',()=>toggleOvWeek(w.m));
+    s.appendChild(g);
+    if(on) s.appendChild(svg('rect',{x:x,y:T,width:wd,height:BY+22-T,fill:'none',stroke:'#1f4e9c','stroke-width':2,'pointer-events':'none'}));   // frame round the picked week
   });
   ax.appendChild(a); xs.appendChild(s);
   if(atEnd||!ovDrawn) {xs.scrollLeft=1e9; setTimeout(()=>{xs.scrollLeft=1e9;},60);} else xs.scrollLeft=oldL;
@@ -1117,15 +1175,22 @@ function drawLegend(){
 function showTab(t){
   const wrap=$('wrap');
   if($('listTab').style.display!=='none') listScroll=[wrap.scrollLeft,wrap.scrollTop];   // the list loses its scroll position while hidden
+  if($('ovTab').style.display!=='none') ovScroll=$('ovwrap').scrollLeft;                  // so does the Overview chart
   $('listTab').style.display=(t==='list')?'':'none'; $('ovTab').style.display=(t==='ov')?'':'none';
   $('tabs').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-  if(t==='ov'){ if(!ovDrawn){drawLegend(); drawOverview(); dayStocks(); drawEvents(); drawTransitions(); ovDrawn=true;} }
-  else {wrap.scrollLeft=listScroll[0]; wrap.scrollTop=listScroll[1];}
+  if(t==='ov'){
+    if(!ovDrawn){drawLegend(); drawOverview(); drawOvWeeks(); dayStocks(); drawEvents(); drawTransitions(); ovDrawn=true; ovDirty=false;}
+    else {if(ovDirty){drawOverview(); drawOvWeeks(); ovDirty=false;} $('ovwrap').scrollLeft=ovScroll;}   // weeks changed in the List: redraw the band
+  } else {
+    if(listDirty){listDirty=false; shown=limit||25; open=null; listScroll[1]=0; render();}   // weeks changed in the Overview: redraw the list now that it is visible
+    wrap.scrollLeft=listScroll[0]; wrap.scrollTop=listScroll[1];
+  }
 }
 function reset(){shown=limit||25; render();}
 function resetAll(){   // back to the default: Worth following, no filters, no search, default sort, 25 rows
-  view='worth'; open=null; weekSel=null; weekIdx=[]; scrollEnd=true; sortKey=null; sortDir=-1; limit=D.first_rows; shown=limit;
-  $('fstatus').value=''; $('falert').value=''; $('fqual').value=''; $('fmin').value='0'; $('fsym').value=''; $('frows').value=String(limit);
+  view='worth'; open=null; weekSel=[]; weekIdx=[]; ovDirty=true; scrollEnd=true; sortKey=null; sortDir=-1; limit=D.first_rows; shown=limit;
+  stSel.clear(); $('stbox').querySelectorAll('input').forEach(x=>{x.checked=false;}); $('fstatus').open=false; stLabel();
+  $('falert').value=''; $('fqual').value=''; $('fmin').value='0'; $('fsym').value=''; $('frows').value=String(limit);
   $('views').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',VIEWS[i][0]===view));
   render();
 }
@@ -1135,9 +1200,16 @@ function setup(){
   const vb=$('views');
   VIEWS.forEach(([k,label])=>{const b=el('button','v'+(k===view?' on':''),label);
     b.onclick=()=>{view=k; vb.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); reset();}; vb.appendChild(b);});
-  const fs=$('fstatus'); fs.appendChild(Object.assign(el('option'),{value:'',textContent:'Any'}));
-  Object.keys(STATUS).forEach(c=>fs.appendChild(Object.assign(el('option'),{value:c,textContent:STATUS[c]})));
-  ['fstatus','falert','fqual','fmin','fsym'].forEach(id=>{$(id).addEventListener(id==='fsym'||id==='fmin'?'input':'change',reset);});
+  const sb=$('stbox');   // Status menu: one check box per status; many can be ticked
+  Object.keys(STATUS).forEach(c=>{
+    const l=el('label'), cb=document.createElement('input'); cb.type='checkbox'; cb.value=c;
+    cb.onchange=()=>{if(cb.checked) stSel.add(c); else stSel.delete(c); stLabel(); reset();};
+    const b=el('b',null,c); b.style.cssText='display:inline-block;width:22px;text-align:center;border-radius:3px;margin:0 6px;background:'+(D.fills[c]||'#ccc')+';color:'+(D.fonts[c]||'#000');
+    l.appendChild(cb); l.appendChild(b); l.appendChild(document.createTextNode(STATUS[c])); sb.appendChild(l);});
+  const sc=el('button','v','Clear status'); sc.style.cssText='margin-top:4px;font-size:13px;padding:2px 10px';
+  sc.onclick=()=>{stSel.clear(); sb.querySelectorAll('input').forEach(x=>{x.checked=false;}); stLabel(); reset();}; sb.appendChild(sc);
+  document.addEventListener('click',ev=>{const d=$('fstatus'); if(d.open&&!d.contains(ev.target)) d.open=false;});   // a click outside closes the menu
+  ['falert','fqual','fmin','fsym'].forEach(id=>{$(id).addEventListener(id==='fsym'||id==='fmin'?'input':'change',reset);});
   $('frows').onchange=()=>{limit=parseInt($('frows').value,10); shown=limit; render();};
   $('freset').onclick=resetAll;
   const lg=$('legend');
@@ -1146,7 +1218,7 @@ function setup(){
     s.appendChild(b); s.appendChild(document.createTextNode(text)); lg.appendChild(s);});
   const al=el('span','leg'); const dot=el('b',null,'●'); dot.style.color='#d22'; al.appendChild(dot);
   al.appendChild(document.createTextNode('Alert that day (score 70 or more)')); lg.appendChild(al);
-  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The six columns and the title row stay in place. Quality and last alert are in the detail panel (click a stock). The strip opens at the newest day; scroll left for older days. Click a date header to show only the stocks listed in that week; click it again to clear. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
+  $('info').textContent=D.rows.length?('Run days: '+D.days.length+' ('+D.days[0]+' to '+D.days[D.days.length-1]+'). The six columns and the title row stay in place. Quality and last alert are in the detail panel (click a stock). The strip opens at the newest day; scroll left for older days. Click a date header to add that week (click again to remove it); you can pick many weeks. With weeks picked, Status, Alert and Times listed look only at those weeks. Tick many statuses in the Status menu; with a status ticked and no sort chosen, the stock whose status day is newest comes first. Worth following = a breakout or an alert at least once, or near breakout now, and listed in the last '+D.recent_days+' run days.'):'';
   D.rows.forEach((r,i)=>{r._i=i;});
   scrollEnd=true; render();   // the list is drawn while it is visible (the frozen columns need real widths), then the page opens on the Overview
   showTab('ov');
